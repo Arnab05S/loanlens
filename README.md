@@ -4,8 +4,8 @@ AI-powered loan rejection analyser that helps any ordinary Indian citizen — in
 ---
 Submission checklist
 [ ] GitHub repository (this repo) — public
-[ ] Live MVP link — `https://<your-github-username>.github.io/loanlens`
-[ ] Demo video — `loanlens_demo_walkthrough.html` recorded via Loom/OBS
+[ ] Live MVP link — 'https://arnab05s.github.io/loanlens/'
+[ ] Demo video — `loanlens_demo_walkthrough.html`
 [ ] Project deck — see `/docs/deck.pdf`
 ---
 Project structure
@@ -88,8 +88,8 @@ What to submit on Hack2Skill
 Field	Value
 Problem statement	Unbiased AI Decision — detecting and explaining bias in Indian loan rejections
 Solution overview	AI-powered citizen fairness auditor using Gemini 1.5 Flash + Python bias engine + Firebase
-Prototype link	`https://YOUR_USERNAME.github.io/loanlens`
-GitHub repo	`https://github.com/YOUR_USERNAME/loanlens`
+Prototype link	`https://arnab05s.github.io/loanlens/`
+GitHub repo	`https://github.com/arnab05s/loanlens`
 Demo video	Upload the recorded screencast (≤20 min)
 ---
 Tech stack
