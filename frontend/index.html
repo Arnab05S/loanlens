@@ -1,0 +1,541 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>LoanLens — AI Loan Fairness Auditor for India</title>
+<link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=IBM+Plex+Mono:wght@400;500;600&family=Geist:wght@300;400;500;600&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#f4f1eb;--surf:#fff;--surf2:#f9f7f2;--surf3:#f0ede4;
+  --ink:#1a1a1a;--ink2:#3d3d3a;--ink3:#6b6860;--ink4:#9b9890;
+  --border:#e2ddd4;--border2:#ccc8be;
+  --red:#c0392b;--red-l:#fdf0ee;--red-m:#f5c6c1;
+  --amb:#b5651d;--amb-l:#fef7ee;--amb-m:#f5d8b0;
+  --grn:#1a6b4a;--grn-l:#eef7f2;--grn-m:#a8d5bc;
+  --blu:#1a4a8a;--blu-l:#eef2fb;--blu-m:#a8c0e8;
+  --serif:'Instrument Serif',Georgia,serif;
+  --mono:'IBM Plex Mono',monospace;
+  --sans:'Geist','DM Sans',sans-serif;
+}
+*{box-sizing:border-box;margin:0;padding:0;}
+body{font-family:var(--sans);background:var(--bg);color:var(--ink);min-height:100vh;}
+.app{max-width:860px;margin:0 auto;padding:28px 20px 60px;}
+
+/* Header */
+.header{display:flex;align-items:center;gap:10px;margin-bottom:28px;padding-bottom:18px;border-bottom:1px solid var(--border);}
+.logo-mark{width:32px;height:32px;background:var(--ink);border-radius:7px;display:flex;align-items:center;justify-content:center;flex-shrink:0;}
+.logo-name{font-family:var(--serif);font-size:22px;color:var(--ink);}
+.logo-sub{font-size:11px;color:var(--ink3);font-family:var(--mono);border-left:1px solid var(--border);margin-left:8px;padding-left:8px;}
+.header-right{margin-left:auto;display:flex;gap:8px;}
+.mode-pill{font-size:11px;font-family:var(--mono);padding:4px 10px;border-radius:20px;border:1px solid var(--border2);color:var(--ink3);cursor:pointer;}
+.mode-pill.active{background:var(--ink);color:#fff;border-color:var(--ink);}
+
+/* Hero */
+.hero{text-align:center;margin-bottom:28px;}
+.hero-title{font-family:var(--serif);font-size:44px;color:var(--ink);line-height:1.08;margin-bottom:10px;letter-spacing:-.01em;}
+.hero-sub{font-size:15px;color:var(--ink3);line-height:1.65;max-width:560px;margin:0 auto 20px;}
+.hero-stats{display:flex;gap:24px;justify-content:center;flex-wrap:wrap;}
+.hs{text-align:center;}
+.hs-v{font-family:var(--serif);font-size:28px;color:var(--ink);}
+.hs-l{font-size:10px;color:var(--ink4);font-family:var(--mono);}
+
+/* Input type cards */
+.input-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:9px;margin-bottom:18px;}
+.icard{background:var(--surf);border:1.5px solid var(--border);border-radius:11px;padding:16px;text-align:center;cursor:pointer;transition:all .15s;}
+.icard:hover,.icard.sel{border-color:var(--ink);background:var(--surf2);}
+.icard-icon{font-size:22px;margin-bottom:7px;}
+.icard-title{font-size:13px;font-weight:500;color:var(--ink);margin-bottom:2px;}
+.icard-sub{font-size:10px;color:var(--ink3);line-height:1.5;}
+.icard-fmts{font-size:9px;font-family:var(--mono);color:var(--ink4);margin-top:5px;}
+
+/* Upload area */
+.upload-area{border:2px dashed var(--border2);border-radius:12px;padding:32px;text-align:center;cursor:pointer;background:var(--surf);margin-bottom:12px;transition:all .2s;}
+.upload-area:hover{border-color:var(--ink);background:var(--surf2);}
+.ua-icon{font-size:30px;margin-bottom:9px;}
+.ua-title{font-size:15px;font-weight:500;color:var(--ink);margin-bottom:4px;}
+.ua-sub{font-size:12px;color:var(--ink3);margin-bottom:14px;}
+.ua-btn{background:var(--ink);color:#fff;border:none;border-radius:7px;padding:9px 20px;font-size:13px;cursor:pointer;font-family:var(--sans);font-weight:500;}
+.ua-fmts{font-size:9px;font-family:var(--mono);color:var(--ink4);margin-top:8px;}
+#file-input{display:none;}
+#photo-input{display:none;}
+
+/* Lang chips */
+.lang-row{display:flex;gap:5px;flex-wrap:wrap;margin-bottom:8px;}
+.lchip{font-size:10px;font-family:var(--mono);padding:4px 8px;border-radius:5px;border:1px solid var(--border);background:var(--surf);cursor:pointer;color:var(--ink3);transition:all .12s;}
+.lchip.sel,.lchip:hover{border-color:var(--ink);background:var(--surf3);color:var(--ink);}
+textarea{width:100%;border:1px solid var(--border);border-radius:10px;padding:12px 14px;font-size:13px;font-family:var(--sans);color:var(--ink);background:var(--surf);resize:none;outline:none;line-height:1.6;}
+textarea:focus{border-color:var(--ink2);}
+.analyse-btn{width:100%;background:var(--ink);color:#fff;border:none;border-radius:9px;padding:12px;font-size:14px;font-weight:500;cursor:pointer;font-family:var(--sans);margin-top:10px;transition:opacity .15s;}
+.analyse-btn:hover{opacity:.88;}
+.analyse-btn:disabled{opacity:.45;cursor:not-allowed;}
+
+/* Privacy note */
+.privacy{background:var(--surf);border:1px solid var(--border);border-radius:8px;padding:10px 13px;font-size:11px;color:var(--ink3);display:flex;align-items:center;gap:7px;}
+
+/* Processing */
+.processing{background:var(--surf);border:1px solid var(--border);border-radius:11px;padding:24px;text-align:center;}
+.proc-title{font-family:var(--serif);font-size:18px;color:var(--ink);margin-bottom:4px;}
+.proc-sub{font-size:12px;color:var(--ink3);margin-bottom:18px;}
+.proc-steps{display:flex;flex-direction:column;gap:7px;text-align:left;max-width:380px;margin:0 auto;}
+.proc-row{display:flex;align-items:center;gap:9px;font-size:12px;}
+.pdot{width:15px;height:15px;border-radius:50%;border:1.5px solid var(--border2);display:flex;align-items:center;justify-content:center;font-size:7px;flex-shrink:0;}
+.pdot.done{background:var(--grn);border-color:var(--grn);color:#fff;}
+.pdot.spin{border-color:var(--amb);animation:spin .7s linear infinite;}
+@keyframes spin{to{transform:rotate(360deg)}}
+
+/* Result */
+.verdict-card{border-radius:12px;padding:20px;margin-bottom:14px;position:relative;}
+.vc-bad{background:var(--red-l);border:1.5px solid var(--red-m);}
+.vc-warn{background:var(--amb-l);border:1.5px solid var(--amb-m);}
+.vc-ok{background:var(--grn-l);border:1.5px solid var(--grn-m);}
+.vc-score{position:absolute;top:16px;right:18px;text-align:right;}
+.vc-score-val{font-family:var(--mono);font-size:32px;font-weight:600;line-height:1;}
+.vc-verdict{font-family:var(--serif);font-size:20px;color:var(--ink);margin-bottom:4px;}
+.vc-conf{font-size:11px;font-family:var(--mono);color:var(--ink3);margin-bottom:8px;}
+.vc-body{font-size:13px;color:var(--ink2);line-height:1.7;}
+
+.extracted-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:14px;}
+.ef{background:var(--surf);border:1px solid var(--border);border-radius:8px;padding:10px 12px;}
+.ef-label{font-size:9px;font-family:var(--mono);color:var(--ink4);text-transform:uppercase;letter-spacing:.07em;margin-bottom:3px;}
+.ef-val{font-size:13px;font-weight:500;color:var(--ink);}
+.ef-flag{font-size:9px;color:var(--red);margin-top:2px;font-family:var(--mono);}
+
+.bias-panel{background:var(--surf);border:1px solid var(--border);border-radius:10px;padding:14px;margin-bottom:14px;}
+.bp-title{font-size:12px;font-weight:500;color:var(--ink);margin-bottom:10px;}
+.brow{display:flex;align-items:center;gap:8px;margin-bottom:7px;}
+.blabel{font-size:11px;font-family:var(--mono);color:var(--ink2);flex:1;}
+.btrack{width:110px;height:7px;background:var(--surf3);border-radius:2px;overflow:hidden;flex-shrink:0;}
+.bfill{height:7px;border-radius:2px;transition:width .8s;}
+.bfill.h{background:var(--red);}
+.bfill.m{background:var(--amb);}
+.bfill.l{background:var(--grn);}
+.bpct{font-size:10px;font-family:var(--mono);width:28px;text-align:right;flex-shrink:0;}
+
+.nxt-panel{background:var(--surf);border:1px solid var(--border);border-radius:10px;overflow:hidden;margin-bottom:14px;}
+.nxt-head{padding:9px 13px;border-bottom:1px solid var(--border);background:var(--surf2);font-size:11px;font-family:var(--mono);font-weight:600;color:var(--ink3);text-transform:uppercase;letter-spacing:.07em;}
+.nxt-step{padding:10px 13px;border-bottom:1px solid var(--border);display:flex;gap:9px;}
+.nxt-step:last-child{border-bottom:none;}
+.nst-n{width:20px;height:20px;border-radius:50%;background:var(--surf3);color:var(--ink3);font-size:10px;font-family:var(--mono);display:flex;align-items:center;justify-content:center;flex-shrink:0;margin-top:1px;}
+.nst-title{font-size:12px;font-weight:500;color:var(--ink);margin-bottom:2px;}
+.nst-detail{font-size:11px;color:var(--ink3);line-height:1.5;}
+.nst-link{display:inline-block;font-size:10px;color:var(--blu);font-family:var(--mono);margin-top:3px;text-decoration:none;}
+.nst-link:hover{text-decoration:underline;}
+
+.share-row{display:flex;gap:8px;flex-wrap:wrap;}
+.share-btn{flex:1;min-width:120px;border-radius:8px;padding:10px;font-size:12px;font-weight:500;cursor:pointer;font-family:var(--sans);text-align:center;transition:opacity .15s;}
+.share-btn:hover{opacity:.85;}
+.share-btn.primary{background:var(--ink);color:#fff;border:none;}
+.share-btn.sec{background:none;color:var(--ink);border:1.5px solid var(--border2);}
+
+.restart-btn{width:100%;margin-top:14px;background:none;border:1px solid var(--border2);border-radius:9px;padding:10px;font-size:13px;color:var(--ink3);cursor:pointer;font-family:var(--sans);}
+.restart-btn:hover{background:var(--surf2);}
+
+.err{background:var(--red-l);border:1px solid var(--red-m);border-radius:9px;padding:12px 14px;font-size:13px;color:var(--red);margin-bottom:12px;}
+.hidden{display:none;}
+
+::-webkit-scrollbar{width:4px;}
+::-webkit-scrollbar-track{background:transparent;}
+::-webkit-scrollbar-thumb{background:var(--border2);border-radius:2px;}
+</style>
+</head>
+<body>
+<div class="app">
+
+  <!-- ── CONFIG: paste your Cloud Run URL here after deploying ─────────────── -->
+  <script>
+    // After deploying the backend to Cloud Run, replace the URL below.
+    // Format: https://loanlens-backend-XXXX-uc.a.run.app
+    // Leave as empty string "" to use demo mode (no real API calls).
+    const API_BASE = "";
+  </script>
+  <!-- ──────────────────────────────────────────────────────────────────────── -->
+
+  <div class="header">
+    <div class="logo-mark">
+      <svg width="18" height="18" viewBox="0 0 16 16" fill="none" stroke="#fff" stroke-width="1.5" stroke-linecap="round">
+        <path d="M3 13V6M6 13V3M9 13V8M12 13V5"/><path d="M2 13h12" stroke-width="1"/>
+      </svg>
+    </div>
+    <span class="logo-name">LoanLens</span>
+    <span class="logo-sub">AI Fairness Auditor · India</span>
+    <div class="header-right">
+      <span class="mode-pill active">Citizen mode</span>
+      <span class="mode-pill">Bank / API mode</span>
+    </div>
+  </div>
+
+  <div class="hero">
+    <div class="hero-title">Did your loan get<br>rejected unfairly?</div>
+    <div class="hero-sub">Upload your rejection letter, take a photo, or type what happened — in your language. LoanLens checks for hidden bias and tells you what to do next. Free, private, in 30 seconds.</div>
+    <div class="hero-stats">
+      <div class="hs"><div class="hs-v">22</div><div class="hs-l">Indian languages</div></div>
+      <div class="hs"><div class="hs-v">Free</div><div class="hs-l">No registration</div></div>
+      <div class="hs"><div class="hs-v">30s</div><div class="hs-l">Average result time</div></div>
+      <div class="hs"><div class="hs-v">24h</div><div class="hs-l">Data auto-deleted</div></div>
+    </div>
+  </div>
+
+  <!-- ── STEP 1: Choose input type ── -->
+  <div id="step-input">
+    <div class="input-grid">
+      <div class="icard sel" id="uc-pdf" onclick="selInput('pdf')">
+        <div class="icard-icon">📄</div>
+        <div class="icard-title">Upload document</div>
+        <div class="icard-sub">Any bank letter, notice, or document you received</div>
+        <div class="icard-fmts">PDF · JPG · PNG · Screenshot · Word doc</div>
+      </div>
+      <div class="icard" id="uc-photo" onclick="selInput('photo')">
+        <div class="icard-icon">📸</div>
+        <div class="icard-title">Take a photo</div>
+        <div class="icard-sub">Point your phone camera at the rejection letter</div>
+        <div class="icard-fmts">Camera · Gallery · WhatsApp forward</div>
+      </div>
+      <div class="icard" id="uc-text" onclick="selInput('text')">
+        <div class="icard-icon">✍️</div>
+        <div class="icard-title">Type or paste</div>
+        <div class="icard-sub">Write what happened in your own words or language</div>
+        <div class="icard-fmts">Any of India's 22 languages supported</div>
+      </div>
+    </div>
+
+    <!-- PDF / screenshot upload -->
+    <div id="zone-pdf">
+      <input type="file" id="file-input" accept=".pdf,.jpg,.jpeg,.png,.webp,.heic,.heif">
+      <div class="upload-area" onclick="document.getElementById('file-input').click()">
+        <div class="ua-icon">📂</div>
+        <div class="ua-title">Drop your file here, or tap to browse</div>
+        <div class="ua-sub">Works with rejection letters, notices, bank statements, screenshots</div>
+        <button class="ua-btn" onclick="event.stopPropagation();document.getElementById('file-input').click()">Choose file →</button>
+        <div class="ua-fmts">PDF · JPG · PNG · WEBP · HEIC · Screenshots</div>
+      </div>
+      <div class="privacy">🔒 Your document is processed privately and deleted within 24 hours. We never store personal data.</div>
+    </div>
+
+    <!-- Camera / photo upload -->
+    <div id="zone-photo" class="hidden">
+      <input type="file" id="photo-input" accept="image/*" capture="environment">
+      <div class="upload-area" onclick="document.getElementById('photo-input').click()">
+        <div class="ua-icon">📸</div>
+        <div class="ua-title">Take a photo of your rejection letter</div>
+        <div class="ua-sub">Place the letter flat, ensure text is readable. AI handles blur and shadows.</div>
+        <button class="ua-btn" onclick="event.stopPropagation();document.getElementById('photo-input').click()">Open camera →</button>
+        <div class="ua-fmts">Or upload from gallery · Works with handwritten letters</div>
+      </div>
+      <div class="privacy">🔒 Your photo is processed privately and deleted within 24 hours.</div>
+    </div>
+
+    <!-- Text input -->
+    <div id="zone-text" class="hidden">
+      <div style="font-size:11px;color:var(--ink3);margin-bottom:7px;">Type in your language — all 22 scheduled languages supported:</div>
+      <div class="lang-row" id="lang-chips"></div>
+      <textarea id="text-input" rows="5" placeholder="Write what reason the bank gave for rejecting your loan. You can write in Hindi, Odia, Bengali, Tamil or any Indian language..."></textarea>
+      <button class="analyse-btn" id="text-submit-btn" onclick="submitText()">Analyse for bias →</button>
+    </div>
+
+    <div class="err hidden" id="err-msg"></div>
+  </div>
+
+  <!-- ── STEP 2: Processing ── -->
+  <div id="step-processing" class="hidden">
+    <div class="processing">
+      <div style="font-size:24px;margin-bottom:8px;">⚙️</div>
+      <div class="proc-title">Analysing your document…</div>
+      <div class="proc-sub">Gemini is reading and checking for bias patterns</div>
+      <div class="proc-steps" id="proc-steps"></div>
+    </div>
+  </div>
+
+  <!-- ── STEP 3: Result ── -->
+  <div id="step-result" class="hidden">
+
+    <div class="verdict-card" id="verdict-card">
+      <div class="vc-score"><div class="vc-score-val" id="score-val">—</div><div style="font-size:9px;font-family:var(--mono);color:var(--ink3);">Bias risk score</div></div>
+      <div style="font-size:20px;margin-bottom:6px;" id="verdict-icon">⚠️</div>
+      <div class="vc-verdict" id="verdict-label">—</div>
+      <div class="vc-conf" id="verdict-conf">—</div>
+      <div class="vc-body" id="verdict-body">—</div>
+    </div>
+
+    <div style="font-size:10px;font-family:var(--mono);color:var(--ink4);text-transform:uppercase;letter-spacing:.07em;margin-bottom:8px;">Details extracted from your document</div>
+    <div class="extracted-grid" id="extracted-grid"></div>
+
+    <div class="bias-panel">
+      <div class="bp-title">Bias signals detected</div>
+      <div id="bias-bars"></div>
+    </div>
+
+    <div class="nxt-panel">
+      <div class="nxt-head">What you can do next</div>
+      <div id="nxt-steps"></div>
+    </div>
+
+    <div class="share-row" style="margin-bottom:0;">
+      <button class="share-btn primary" onclick="window.print()">📄 Save / Print</button>
+      <button class="share-btn sec" onclick="copyLink()">🔗 Copy report link</button>
+      <button class="share-btn sec" onclick="window.open('https://cms.rbi.org.in/','_blank')">🏛 File RBI complaint</button>
+    </div>
+
+    <button class="restart-btn" onclick="restart()">← Check another rejection</button>
+  </div>
+
+</div>
+
+<script>
+// ── Language data ──
+const LANGS = [
+  {id:'ori',nat:'ଓଡ଼ିଆ',eng:'Odia',hint:'ମୋ ଲୋନ ଅସ୍ୱୀକୃତ ହୋଇଛି।'},
+  {id:'hin',nat:'हिन्दी',eng:'Hindi',hint:'मेरा लोन अस्वीकार हो गया।'},
+  {id:'ben',nat:'বাংলা',eng:'Bengali',hint:'আমার ঋণ প্রত্যাখ্যাত হয়েছে।'},
+  {id:'tel',nat:'తెలుగు',eng:'Telugu',hint:'నా లోన్ తిరస్కరించబడింది।'},
+  {id:'tam',nat:'தமிழ்',eng:'Tamil',hint:'என் கடன் நிராகரிக்கப்பட்டது.'},
+  {id:'mar',nat:'मराठी',eng:'Marathi',hint:'माझे कर्ज नाकारले गेले.'},
+  {id:'guj',nat:'ગુજરાતી',eng:'Gujarati',hint:'મારી લોન નકારી ગઈ.'},
+  {id:'kan',nat:'ಕನ್ನಡ',eng:'Kannada',hint:'ನನ್ನ ಸಾಲ ತಿರಸ್ಕರಿಸಲ್ಪಟ್ಟಿದೆ.'},
+  {id:'mal',nat:'മലയാളം',eng:'Malayalam',hint:'എന്റെ വായ്പ നിരസിക്കപ്പെട്ടു.'},
+  {id:'pan',nat:'ਪੰਜਾਬੀ',eng:'Punjabi',hint:'ਮੇਰਾ ਕਰਜ਼ਾ ਰੱਦ ਹੋ ਗਿਆ।'},
+  {id:'asm',nat:'অসমীয়া',eng:'Assamese',hint:'মোৰ ঋণ প্ৰত্যাখ্যান হৈছে।'},
+  {id:'sat',nat:'ᱥᱟᱱᱛᱟᱲᱤ',eng:'Santali',hint:'ᱮ ᱞᱚᱱ ᱟᱠᱟᱱᱟ।'},
+  {id:'urd',nat:'اردو',eng:'Urdu',hint:'میرا قرض مسترد ہو گیا۔'},
+  {id:'kas',nat:'کٲشُر',eng:'Kashmiri',hint:'میتھ قرض رد کیگیو۔'},
+];
+
+// ── Demo data (used when API_BASE is empty) ──
+const DEMO = {
+  bias_score: 78,
+  verdict: 'likely_unfair',
+  verdict_label: 'Likely unfair rejection',
+  confidence: 'High confidence · 3 bias indicators found',
+  extracted: {
+    applicant_name:'Meena Devi',bank_name:'State Bank of India',
+    loan_amount:'₹2,40,000',loan_type:'Agricultural loan',
+    stated_reason:'Insufficient income',stated_reason_en:'Insufficient income',
+    location:'Baliapanda, Puri District, Odisha',occupation:'Farmer',
+    gender:'Female',detected_language:'Odia',
+  },
+  explanation:'ଆପଣଙ୍କ ଋଣ ଅସ୍ୱୀକୃତି ଅନ୍ୟାୟ ଦେଖାଯାଉଛି। ସହର ଅଞ୍ଚଳରେ ସମାନ ଆୟ ଥିବା ଆବେଦନକାରୀଙ୍କୁ ଏହି ବ୍ୟାଙ୍କ ଋଣ ଦେଇଛି।',
+  explanation_en:'Your loan rejection appears unfair. Applicants with the same income from urban areas were approved at this bank.',
+  legal_context:'RBI Priority Sector Lending mandate applies to agricultural loans.',
+  bias_indicators:[
+    {label:'Location (Rural Odisha)',severity:'high',score:78,evidence:'Applicants from rural Odisha are rejected 1.9× more than metro applicants.'},
+    {label:'Occupation: Farmer',severity:'high',score:62,evidence:'Farmer occupation correlates with caste proxies in model training data.'},
+    {label:'Gender: Female',severity:'medium',score:55,evidence:'Female applicants face 14–22% higher rejection rates at same credit profile.'},
+  ],
+  next_steps:[
+    {step_number:1,title:'Request a written explanation from the bank',detail:'Under RBI Fair Practices Code, you have the right to a written reason. Write to the branch manager.',action_link:'https://www.rbi.org.in/scripts/BS_CircularIndexDisplay.aspx',action_label:'View RBI Fair Practices Code →'},
+    {step_number:2,title:'Cite the Priority Sector Lending mandate',detail:'Your agricultural loan falls under PSL. Banks are legally required to lend to this category.',action_link:'https://www.rbi.org.in/Scripts/BS_ViewMasDirections.aspx?id=11959',action_label:'Read PSL Master Direction →'},
+    {step_number:3,title:'File a complaint with the RBI Ombudsman',detail:'File at the RBI IOS portal — completely free, online, in your language.',action_link:'https://cms.rbi.org.in/',action_label:'File RBI complaint →'},
+  ],
+};
+
+// ── State ──
+let selLang = 'hin', activeInput = 'pdf', running = false;
+
+// ── Build lang chips ──
+const lc = document.getElementById('lang-chips');
+LANGS.forEach(l => {
+  const c = document.createElement('span');
+  c.className = 'lchip' + (l.id === selLang ? ' sel' : '');
+  c.textContent = l.nat; c.title = l.eng;
+  c.onclick = () => {
+    document.querySelectorAll('.lchip').forEach(x => x.classList.remove('sel'));
+    c.classList.add('sel'); selLang = l.id;
+    const ta = document.getElementById('text-input');
+    ta.placeholder = l.hint || `Write in ${l.eng}…`;
+  };
+  lc.appendChild(c);
+});
+
+// ── Input type select ──
+function selInput(type) {
+  activeInput = type;
+  ['pdf','photo','text'].forEach(t => {
+    document.getElementById('uc-'+t).classList.toggle('sel', t===type);
+    document.getElementById('zone-'+t).classList.toggle('hidden', t!==type);
+  });
+}
+
+// ── File input wiring ──
+document.getElementById('file-input').onchange = e => { if(e.target.files[0]) uploadFile(e.target.files[0]); };
+document.getElementById('photo-input').onchange = e => { if(e.target.files[0]) uploadFile(e.target.files[0]); };
+
+// ── Upload file ──
+async function uploadFile(file) {
+  if(running) return;
+  startProcessing();
+  try {
+    let result;
+    if (!API_BASE) {
+      await fakeDelay();
+      result = DEMO;
+    } else {
+      const fd = new FormData();
+      fd.append('file', file);
+      const r = await fetch(`${API_BASE}/analyse/document`, {method:'POST', body:fd});
+      if (!r.ok) throw new Error(`Server error ${r.status}: ${await r.text()}`);
+      result = await r.json();
+    }
+    showResult(result);
+  } catch(e) {
+    showErr(e.message);
+  }
+}
+
+// ── Submit text ──
+async function submitText() {
+  const text = document.getElementById('text-input').value.trim();
+  if(text.length < 10) { showErr('Please write at least a sentence describing your rejection.'); return; }
+  if(running) return;
+  startProcessing();
+  try {
+    let result;
+    if (!API_BASE) {
+      await fakeDelay();
+      result = {...DEMO, verdict_label:'Possible unfair rejection', bias_score:61, verdict:'possible_unfair'};
+    } else {
+      const r = await fetch(`${API_BASE}/analyse/text`, {
+        method:'POST',
+        headers:{'Content-Type':'application/json'},
+        body: JSON.stringify({text, language_hint: LANGS.find(l=>l.id===selLang)?.eng}),
+      });
+      if(!r.ok) throw new Error(`Server error ${r.status}: ${await r.text()}`);
+      result = await r.json();
+    }
+    showResult(result);
+  } catch(e) {
+    showErr(e.message);
+  }
+}
+
+// ── Processing animation ──
+const PROC_STEPS = [
+  'Reading document with Gemini Vision',
+  'Detecting language automatically',
+  'Extracting loan details and rejection reason',
+  'Running India-specific bias checks',
+  'Generating plain-language explanation',
+];
+
+function startProcessing() {
+  running = true;
+  document.getElementById('err-msg').classList.add('hidden');
+  document.getElementById('step-input').classList.add('hidden');
+  document.getElementById('step-processing').classList.remove('hidden');
+  document.getElementById('step-result').classList.add('hidden');
+  const container = document.getElementById('proc-steps');
+  container.innerHTML = '';
+  PROC_STEPS.forEach((s,i) => {
+    const row = document.createElement('div');
+    row.className = 'proc-row'; row.id = 'prow-'+i;
+    row.innerHTML = `<div class="pdot" id="pdot-${i}"></div><span style="color:var(--ink4)">${s}</span>`;
+    container.appendChild(row);
+  });
+  animateSteps(0);
+}
+
+function animateSteps(i) {
+  if(i > 0) {
+    const prev = document.getElementById('pdot-'+(i-1));
+    if(prev) { prev.className='pdot done'; prev.textContent='✓'; prev.parentElement.querySelector('span').style.color='var(--ink2)'; }
+  }
+  if(i < PROC_STEPS.length) {
+    const dot = document.getElementById('pdot-'+i);
+    if(dot) dot.className='pdot spin';
+    setTimeout(() => animateSteps(i+1), 700 + Math.random()*400);
+  }
+}
+
+async function fakeDelay() {
+  return new Promise(r => setTimeout(r, PROC_STEPS.length * 800 + 500));
+}
+
+// ── Show result ──
+function showResult(d) {
+  running = false;
+  document.getElementById('step-processing').classList.add('hidden');
+  document.getElementById('step-result').classList.remove('hidden');
+
+  const score = d.bias_score || 0;
+  const scoreEl = document.getElementById('score-val');
+  scoreEl.textContent = score;
+  scoreEl.style.color = score>=70?'var(--red)':score>=50?'var(--amb)':'var(--grn)';
+
+  const vc = document.getElementById('verdict-card');
+  vc.className = 'verdict-card ' + (score>=70?'vc-bad':score>=50?'vc-warn':'vc-ok');
+  document.getElementById('verdict-icon').textContent = score>=70?'⚠️':score>=50?'⚡':'✅';
+  document.getElementById('verdict-label').textContent = d.verdict_label || d.verdict || '';
+  document.getElementById('verdict-conf').textContent = d.confidence || '';
+  document.getElementById('verdict-body').textContent = d.explanation_en || d.explanation || '';
+
+  // Extracted fields
+  const ex = d.extracted || {};
+  const fields = [
+    {l:'Loan amount',v:ex.loan_amount||'Not detected',f:''},
+    {l:'Stated reason',v:ex.stated_reason_en||ex.stated_reason||'Not detected',f:score>=50?'⚑ Flagged for review':''},
+    {l:'Your location',v:ex.location||'Not detected',f:''},
+    {l:'Occupation',v:ex.occupation||'Not detected',f:''},
+    {l:'Language detected',v:ex.detected_language||'Unknown',f:''},
+    {l:'Bank name',v:ex.bank_name||'Not detected',f:''},
+  ];
+  document.getElementById('extracted-grid').innerHTML = fields.map(f =>
+    `<div class="ef"><div class="ef-label">${f.l}</div><div class="ef-val">${f.v}</div>${f.f?`<div class="ef-flag">${f.f}</div>`:''}</div>`
+  ).join('');
+
+  // Bias bars
+  const bb = document.getElementById('bias-bars');
+  if((d.bias_indicators||[]).length) {
+    bb.innerHTML = (d.bias_indicators||[]).map(ind => {
+      const cls = ind.severity==='high'?'h':ind.severity==='medium'?'m':'l';
+      const col = ind.severity==='high'?'var(--red)':ind.severity==='medium'?'var(--amb)':'var(--grn)';
+      return `<div class="brow">
+        <span class="blabel" title="${ind.evidence||''}">${ind.label}</span>
+        <div class="btrack"><div class="bfill ${cls}" style="width:${ind.score||0}%"></div></div>
+        <span class="bpct" style="color:${col}">${ind.score||0}%</span>
+      </div>`;
+    }).join('');
+  } else {
+    bb.innerHTML = '<div style="font-size:12px;color:var(--ink3);">No significant bias signals detected.</div>';
+  }
+
+  // Next steps
+  const ns = document.getElementById('nxt-steps');
+  ns.innerHTML = (d.next_steps||[]).map(s =>
+    `<div class="nxt-step">
+      <div class="nst-n">${s.step_number}</div>
+      <div>
+        <div class="nst-title">${s.title}</div>
+        <div class="nst-detail">${s.detail}</div>
+        ${s.action_link?`<a class="nst-link" href="${s.action_link}" target="_blank" rel="noopener">${s.action_label||'Learn more →'}</a>`:''}
+      </div>
+    </div>`
+  ).join('');
+}
+
+// ── Error ──
+function showErr(msg) {
+  running = false;
+  document.getElementById('step-processing').classList.add('hidden');
+  document.getElementById('step-input').classList.remove('hidden');
+  const e = document.getElementById('err-msg');
+  e.classList.remove('hidden');
+  e.textContent = '⚠ ' + msg;
+}
+
+// ── Restart ──
+function restart() {
+  running = false;
+  document.getElementById('step-result').classList.add('hidden');
+  document.getElementById('step-processing').classList.add('hidden');
+  document.getElementById('err-msg').classList.add('hidden');
+  document.getElementById('step-input').classList.remove('hidden');
+  document.getElementById('file-input').value = '';
+  document.getElementById('photo-input').value = '';
+  document.getElementById('text-input').value = '';
+}
+
+function copyLink() {
+  navigator.clipboard.writeText(window.location.href).then(() => alert('Link copied!'));
+}
+</script>
+</body>
+</html>
