@@ -69,18 +69,29 @@ def _provider_error_kind(exc):
 def _generate(contents, system):
     """Call Gemini with one retry for transient provider/network failures."""
     for attempt in range(2):
+        phase = "client_setup"
         try:
-            response = _client().models.generate_content(
+            client = _client()
+            phase = "provider_request"
+            response = client.models.generate_content(
                 model=MODEL,
                 contents=contents,
                 config=types.GenerateContentConfig(
                     system_instruction=system,
                     temperature=0.2,
                     response_mime_type="application/json",
+                    automatic_function_calling=types.AutomaticFunctionCallingConfig(disable=True),
                     max_output_tokens=1800,
                 ),
             )
-            raw = response.text
+            phase = "response_text"
+            try:
+                raw = response.text
+            except Exception as exc:
+                candidates = getattr(response, "candidates", None) or []
+                finish = getattr(candidates[0], "finish_reason", None) if candidates else None
+                reason = getattr(finish, "name", None) or "unknown"
+                raise AIServiceError(f"response_text_unavailable:{reason}:{type(exc).__name__}") from exc
             if not raw:
                 raise AIServiceError("AI returned an empty response")
             try:
@@ -96,7 +107,7 @@ def _generate(contents, system):
             if attempt == 0:
                 time.sleep(0.4)
                 continue
-            raise AIServiceError(_provider_error_kind(exc)) from exc
+            raise AIServiceError(f"{phase}_{_provider_error_kind(exc)}") from exc
 
 
 async def _generate_async(contents, system):
