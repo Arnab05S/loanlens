@@ -1,130 +1,40 @@
-LoanLens — AI Loan Fairness Auditor for India
-> Google Solution Challenge 2026 · Problem theme: **Unbiased AI Decision**
-AI-powered loan rejection analyser that helps any ordinary Indian citizen — in any of India's 22 scheduled languages — check whether their loan was rejected unfairly, and exactly what to do about it.
----
-Submission checklist
-[ ] GitHub repository (this repo) — public
-[ ] Live MVP link — 'https://arnab05s.github.io/loanlens/'
-[ ] Demo video — `loanlens_demo_walkthrough.html`
-[ ] Project deck — see `/docs/deck.pdf`
----
-Project structure
-```
-loanlens/
-├── backend/
-│   ├── main.py          ← complete FastAPI backend (single file)
-│   ├── requirements.txt
-│   └── Dockerfile
-├── frontend/
-│   └── index.html       ← complete citizen-mode UI (single file)
-├── docs/
-│   ├── loanlens_citizen_mode.html   ← full prototype demo
-│   └── loanlens_demo_walkthrough.html
-└── README.md
-```
----
-Local development (test before deploying)
-```bash
-# Backend
-cd backend
-pip install -r requirements.txt
-echo "GEMINI_API_KEY=your_key_here" > .env
-uvicorn main:app --reload --port 8000
-# Visit http://localhost:8000/docs to test all endpoints
+# LoanLens — loan rejection explainer for India
 
-# Frontend — just open in browser
-open frontend/index.html
-# Set API_BASE = "http://localhost:8000" in the <script> config block
-```
----
-Deploy in 3 steps
-Step 1 — Deploy backend to Google Cloud Run (~15 min)
-```bash
-# Install gcloud CLI from https://cloud.google.com/sdk/docs/install
+LoanLens extracts information from a rejection notice or a user description and suggests practical follow-up steps. It is an informational prototype, not a lender decision system, legal service, or statistical fairness audit. A single application cannot establish discrimination.
 
-# Authenticate
-gcloud auth login
-gcloud config set project YOUR_GCP_PROJECT_ID
+## Current setup
 
-# Set your Gemini API key as a secret
-gcloud secrets create gemini-api-key --data-file=- <<< "YOUR_GEMINI_API_KEY"
+- Frontend: static HTML/JavaScript in both index.html and frontend/index.html (kept identical for the two GitHub Pages layouts).
+- Backend: FastAPI in backend/main.py.
+- AI: Google GenAI Python SDK (google-genai), default model gemini-3.8-flash.
+- No sample/demo result is returned when the API is absent. The UI shows a configuration error instead.
 
-# Deploy from the backend/ folder
-cd backend
-gcloud run deploy loanlens-backend \
-  --source . \
-  --region asia-south1 \
-  --allow-unauthenticated \
-  --set-secrets=GEMINI_API_KEY=gemini-api-key:latest \
-  --memory 512Mi \
-  --timeout 60s
+## Local run
 
-# Copy the Service URL printed at the end — looks like:
-# https://loanlens-backend-XXXX-as.a.run.app
-```
-Step 2 — Set backend URL in frontend (~1 min)
-Open `frontend/index.html` and find the config block near the top:
-```javascript
-const API_BASE = "";  // ← paste your Cloud Run URL here
-// becomes:
-const API_BASE = "https://loanlens-backend-XXXX-as.a.run.app";
-```
-Step 3 — Deploy frontend to GitHub Pages (~5 min)
-```bash
-# From repo root
-git init
-git add .
-git commit -m "Initial LoanLens submission"
-git branch -M main
-git remote add origin https://github.com/YOUR_USERNAME/loanlens.git
-git push -u origin main
+1. Create a virtual environment and install backend/requirements.txt.
+2. Set GEMINI_API_KEY in the backend environment (never put it in the browser or commit it).
+3. Run uvicorn main:app --app-dir backend --reload --port 8000 from the repository root.
+4. Set window.LOANLENS_API_BASE to http://localhost:8000 in the frontend before use.
+5. For local CORS, set CORS_ORIGINS to the frontend origin. The default is permissive for a simple static prototype; production should set the exact site origin.
 
-# In GitHub:
-# Settings → Pages → Source → Deploy from branch → main → /frontend → Save
-# Your live URL: https://YOUR_USERNAME.github.io/loanlens
-```
----
-What to submit on Hack2Skill
-Field	Value
-Problem statement	Unbiased AI Decision — detecting and explaining bias in Indian loan rejections
-Solution overview	AI-powered citizen fairness auditor using Gemini 1.5 Flash + Python bias engine + Firebase
-Prototype link	`https://arnab05s.github.io/loanlens/`
-GitHub repo	`https://github.com/arnab05s/loanlens`
-Demo video	Upload the recorded screencast (≤20 min)
----
-Tech stack
-Layer	Technology
-AI extraction	Gemini 1.5 Flash (multimodal — PDF, image, text)
-AI explanation	Gemini 1.5 Flash (plain-language, all 22 languages)
-Bias engine	Python + Fairlearn + India-specific rule database
-Backend	FastAPI + Cloud Run
-Frontend	Vanilla HTML/JS (no build step — GitHub Pages ready)
-Storage	Firebase Firestore (optional)
----
-Supported input types
-Type	How it works
-PDF	Gemini reads directly as inline_data
-Image / photo	Gemini Vision handles blur, rotation, low light
-Text	Auto-detect language, extract and score
----
-Languages supported (all 22 scheduled languages of India)
-Assamese · Bengali · Bodo · Dogri · Gujarati · Hindi · Kannada · Kashmiri · Konkani · Maithili · Malayalam · Manipuri · Marathi · Nepali · Odia · Punjabi · Sanskrit · Santali · Sindhi · Tamil · Telugu · Urdu
----
-Test the API
-After deploying, test at: `https://loanlens-backend-XXXX-as.a.run.app/docs`
-```bash
-# Health check
-curl https://loanlens-backend-XXXX-as.a.run.app/health
+## Deploying
 
-# Text analysis
-curl -X POST https://loanlens-backend-XXXX-as.a.run.app/analyse/text \
-  -H "Content-Type: application/json" \
-  -d '{"text": "मेरा लोन अस्वीकार हो गया। बैंक ने कहा क्षेत्र सेवायोग्य नहीं है।"}'
+Deploy the backend separately (for example, Cloud Run). Configure GEMINI_API_KEY as a server-side secret and set CORS_ORIGINS to the exact GitHub Pages origin. Set the frontend API base to the HTTPS backend URL. GitHub Pages is static hosting and cannot keep an AI API key secret. A working end-to-end deployment requires both a live backend and correct CORS/API URL configuration.
 
-# Document upload
-curl -X POST https://loanlens-backend-XXXX-as.a.run.app/analyse/document \
-  -F "file=@rejection_letter.pdf"
-```
----
-Team
-4 members · India · Google Solution Challenge 2026
+The repository does not include a verified live backend URL. Do not claim the public demo performs AI analysis until deployment has been configured and checked.
+
+## Supported inputs
+
+Text, PDF, JPEG, PNG, and WEBP. Maximum upload size is 20 MB. Other formats (including HEIC and Word documents) are not accepted by the API.
+
+## Safety and limitations
+
+- Extraction is per request; errors and unreadable/empty documents fail instead of receiving a canned result.
+- Identity characteristics are not converted into a bias score. The app does not have lender-wide applicant data for statistical comparisons.
+- Never upload unredacted Aadhaar/PAN, bank account, or phone details. Files are sent to Google’s AI service for analysis; review provider terms and privacy policy before public use.
+- RBI escalation eligibility and applicable law depend on circumstances. Check current official guidance and seek qualified advice where needed.
+- Before public use, add abuse/rate limits, privacy and retention review, accessibility and language QA, and tests against representative redacted examples.
+
+## Test
+
+From the backend directory with dependencies installed: python -m unittest test_main.py
