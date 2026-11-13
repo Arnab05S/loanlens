@@ -87,5 +87,16 @@ class BackendAnalysisTests(unittest.TestCase):
         self.assertEqual(response.status_code, 503)
         self.assertNotEqual(response.status_code, 422)
 
+    def test_invalid_structured_output_retries_with_stable_model(self):
+        from types import SimpleNamespace
+        from unittest.mock import Mock
+        calls = Mock(side_effect=[SimpleNamespace(text="not-json"), SimpleNamespace(text='{"ok": true}')])
+        client = SimpleNamespace(models=SimpleNamespace(generate_content=calls))
+        with patch.object(main, "MODEL", "test-primary"), patch.object(main, "_client", return_value=client):
+            result = main._generate("synthetic case", "system prompt")
+        self.assertEqual(result, {"ok": True})
+        used = [call.kwargs["model"] for call in calls.call_args_list]
+        self.assertEqual(used, ["test-primary", "gemini-3.5-flash-lite"])
+
 if __name__ == "__main__":
     unittest.main()
