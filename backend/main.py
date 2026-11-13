@@ -56,6 +56,10 @@ def _provider_error_kind(exc):
         if status == 404: return "model_unavailable"
         if status == 429: return "provider_quota_or_rate_limit"
         if status >= 500: return "provider_server_error"
+    if type(exc).__name__ == "ServerError":
+        return "provider_server_error"
+    if type(exc).__name__ == "ClientError":
+        return "provider_client_error"
     message = str(exc).casefold()
     if any(term in message for term in ("api key", "unauthorized", "unauthenticated", "permission denied", "forbidden")):
         return "provider_auth_error"
@@ -67,14 +71,19 @@ def _provider_error_kind(exc):
 
 
 def _generate(contents, system):
-    """Call Gemini with one retry for transient provider/network failures."""
-    for attempt in range(2):
+    """Call the configured model, then a stable fallback only for provider outages."""
+    models = [MODEL]
+    fallback = "gemini-3.6-flash"
+    if MODEL != fallback:
+        models.append(fallback)
+    last_error = "provider_error"
+    for model_name in models:
         phase = "client_setup"
         try:
             client = _client()
             phase = "provider_request"
             response = client.models.generate_content(
-                model=MODEL,
+                model=model_name,
                 contents=contents,
                 config=types.GenerateContentConfig(
                     system_instruction=system,
@@ -104,10 +113,12 @@ def _generate(contents, system):
         except AIServiceError:
             raise
         except Exception as exc:
-            if attempt == 0:
-                time.sleep(0.4)
+            last_error = f"{phase}_{_provider_error_kind(exc)}"
+            if model_name != models[-1] and _provider_error_kind(exc) == "provider_server_error":
+                log.warning("Configured Gemini model unavailable; trying stable fallback (%s)", last_error)
                 continue
-            raise AIServiceError(f"{phase}_{_provider_error_kind(exc)}") from exc
+            raise AIServiceError(last_error) from exc
+    raise AIServiceError(last_error)
 
 
 async def _generate_async(contents, system):
