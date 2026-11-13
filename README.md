@@ -36,9 +36,7 @@ LoanLens reads a borrower’s description or a rejection notice, extracts the ca
 
 ### Language coverage — status matters
 
-The public page currently presents **14 selectable languages**: Assamese, Bengali, Hindi, Kashmiri, Kannada, Malayalam, Marathi, Odia, Punjabi, Santali, Tamil, Telugu, and Urdu. The backend accepted the synthetic test case in 20 of the 22 scheduled languages in our latest test; Dogri returned a service error on two attempts, and Sindhi’s response mixed scripts. Bodo, Dogri, Konkani, Maithili, Manipuri/Meitei, Nepali, Sanskrit, and Sindhi do not currently have a picker option in the public UI.
-
-This is an early functional check, not a native-speaker review, a fluency measure, or evidence that every financial recommendation is correct. Treat language availability as in progress rather than a guarantee of fully validated support for all 22 languages.
+The public page currently offers **14 selectable languages**: Assamese, Bengali, Gujarati, Hindi, Kannada, Kashmiri, Malayalam, Marathi, Odia, Punjabi, Santali, Tamil, Telugu, and Urdu. Bodo, Dogri, Konkani, Maithili, Manipuri/Meitei, Nepali, Sanskrit, and Sindhi are not selectable in the current UI. Unicode input and a language hint do not, by themselves, prove that every language is handled accurately. Treat full 22-language quality as unvalidated until the language-specific test suite and native-speaker review are complete.
 
 ## How it is built
 
@@ -87,9 +85,9 @@ curl https://loanlens-api-0lrc.onrender.com/health
 The two hosted parts have separate automatic deploy sources:
 
 - **Website:** GitHub Pages publishes the repository’s `main` branch root. A commit to the web files or assets on `main` triggers the Pages build-and-deployment workflow.
-- **API:** the Render `loanlens-api` service watches `fix/real-analysis` and is set to auto-deploy on commits to that branch. Keep `GEMINI_API_KEY` in Render’s server-side environment/secret settings.
+- **API:** the Render `loanlens-api` service builds from `backend/` on branch `fix/real-analysis`. Render is set to auto-deploy on relevant commits, so changes inside `backend/` trigger an API build; documentation, root HTML, and image-only changes outside `backend/` do not need to rebuild the API. Keep `GEMINI_API_KEY` in Render’s server-side environment/secret settings.
 
-After a frontend change, verify [the live site](https://arnab05s.github.io/loanlens/). After a backend change, check [API health](https://loanlens-api-0lrc.onrender.com/health) and the Render deployment status. **A commit to `main` does not, by itself, update the Render branch, and a commit to `fix/real-analysis` does not update GitHub Pages.** Keep the branches in sync when touching shared HTML, or merge/reconfigure only after reviewing the current draft pull request. The live UI and the API should both point at the same intended release.
+After a web change, verify [the live site](https://arnab05s.github.io/loanlens/). After a backend change, check [API health](https://loanlens-api-0lrc.onrender.com/health) and the Render deployment status. **A commit to `main` does not, by itself, update the Render branch, and a commit to `fix/real-analysis` does not update GitHub Pages.** Keep the branches in sync when touching shared HTML, or merge/reconfigure only after reviewing the current draft pull request. The live UI and API must both point at the intended release.
 
 ## Repository layout
 
