@@ -130,13 +130,25 @@ def _generate(contents, system):
                 reason = getattr(finish, "name", None) or "unknown"
                 raise AIServiceError(f"response_text_unavailable:{reason}:{type(exc).__name__}") from exc
             if not raw:
-                raise AIServiceError("AI returned an empty response")
+                last_error = "AI returned an empty response"
+                if model_name != models[-1]:
+                    log.warning("Gemini returned an empty response; trying stable fallback")
+                    continue
+                raise AIServiceError(last_error)
             try:
                 data = json.loads(raw.strip())
             except (TypeError, json.JSONDecodeError) as exc:
-                raise AIServiceError("AI returned invalid structured output") from exc
+                last_error = "AI returned invalid structured output"
+                if model_name != models[-1]:
+                    log.warning("Gemini returned invalid structured output; trying stable fallback")
+                    continue
+                raise AIServiceError(last_error) from exc
             if not isinstance(data, dict) or not data:
-                raise AIServiceError("AI returned invalid structured output")
+                last_error = "AI returned invalid structured output"
+                if model_name != models[-1]:
+                    log.warning("Gemini returned invalid structured output; trying stable fallback")
+                    continue
+                raise AIServiceError(last_error)
             return data
         except AIServiceError:
             raise
