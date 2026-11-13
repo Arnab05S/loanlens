@@ -14,7 +14,7 @@ from pydantic import BaseModel, Field
 load_dotenv()
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
 log = logging.getLogger(__name__)
-MODEL = os.getenv("GEMINI_MODEL", "gemini-3.6-flash")
+MODEL = os.getenv("GEMINI_MODEL", "gemini-3.5-flash-lite")
 MAX_BYTES = 20 * 1024 * 1024
 MAX_TEXT = 5000
 SUPPORTED_MIME = {"application/pdf", "image/jpeg", "image/png", "image/webp"}
@@ -100,9 +100,9 @@ def _provider_error_kind(exc):
 def _generate(contents, system):
     """Call the configured model, then a stable fallback only for provider outages."""
     models = [MODEL]
-    fallback = "gemini-3.6-flash"
-    if MODEL != fallback:
-        models.append(fallback)
+    for fallback in ("gemini-3.5-flash-lite", "gemini-3.6-flash", "gemini-3.8-flash"):
+        if fallback not in models:
+            models.append(fallback)
     last_error = "provider_error"
     for model_name in models:
         phase = "client_setup"
