@@ -1,0 +1,28 @@
+name: Deploy backend to Render
+
+on:
+  push:
+      branches:
+            - fix/real-analysis
+                paths:
+                      - "backend/**"
+                            - ".github/workflows/deploy-render-backend.yml"
+
+                            jobs:
+                              deploy:
+                                  runs-on: ubuntu-latest
+                                      steps:
+                                            - name: Trigger Render deployment
+                                                    env:
+                                                              RENDER_DEPLOY_HOOK: ${{ secrets.RENDER_DEPLOY_HOOK }}
+                                                                      shell: bash
+                                                                              run: |
+                                                                                        if [[ -z "$RENDER_DEPLOY_HOOK" ]]; then
+                                                                                                    echo "Missing repository secret RENDER_DEPLOY_HOOK." >&2
+                                                                                                                exit 1
+                                                                                                                          fi
+                                                                                                                                    curl --fail --silent --show-error --request POST \
+                                                                                                                                                --output /dev/null \
+                                                                                                                                                            --write-out "Render deploy hook response: HTTP %{http_code}\n" \
+                                                                                                                                                                        "$RENDER_DEPLOY_HOOK"
+                                                                                                                                                                        
