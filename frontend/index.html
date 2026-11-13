@@ -144,10 +144,8 @@ textarea:focus{border-color:var(--ink2);}
 
   <!-- ── CONFIG: paste your Cloud Run URL here after deploying ─────────────── -->
   <script>
-    // After deploying the backend to Cloud Run, replace the URL below.
-    // Format: https://loanlens-backend-XXXX-uc.a.run.app
-    // Leave as empty string "" to use demo mode (no real API calls).
-    const API_BASE = "";
+    // Set this to the deployed API URL. Empty means analysis is unavailable, never demo output.
+    const API_BASE = (window.LOANLENS_API_BASE || "").replace(/\/$/, "");
   </script>
   <!-- ──────────────────────────────────────────────────────────────────────── -->
 
@@ -183,7 +181,7 @@ textarea:focus{border-color:var(--ink2);}
         <div class="icard-icon">📄</div>
         <div class="icard-title">Upload document</div>
         <div class="icard-sub">Any bank letter, notice, or document you received</div>
-        <div class="icard-fmts">PDF · JPG · PNG · Screenshot · Word doc</div>
+        <div class="icard-fmts">PDF · JPG · PNG · WEBP</div>
       </div>
       <div class="icard" id="uc-photo" onclick="selInput('photo')">
         <div class="icard-icon">📸</div>
@@ -201,15 +199,15 @@ textarea:focus{border-color:var(--ink2);}
 
     <!-- PDF / screenshot upload -->
     <div id="zone-pdf">
-      <input type="file" id="file-input" accept=".pdf,.jpg,.jpeg,.png,.webp,.heic,.heif">
+      <input type="file" id="file-input" accept=".pdf,.jpg,.jpeg,.png,.webp">
       <div class="upload-area" onclick="document.getElementById('file-input').click()">
         <div class="ua-icon">📂</div>
         <div class="ua-title">Drop your file here, or tap to browse</div>
         <div class="ua-sub">Works with rejection letters, notices, bank statements, screenshots</div>
         <button class="ua-btn" onclick="event.stopPropagation();document.getElementById('file-input').click()">Choose file →</button>
-        <div class="ua-fmts">PDF · JPG · PNG · WEBP · HEIC · Screenshots</div>
+        <div class="ua-fmts">PDF · JPG · PNG · WEBP · Screenshots</div>
       </div>
-      <div class="privacy">🔒 Your document is processed privately and deleted within 24 hours. We never store personal data.</div>
+      <div class="privacy">🔒 Your document is sent to the AI service for analysis. Avoid uploading unredacted ID numbers or account details.</div>
     </div>
 
     <!-- Camera / photo upload -->
@@ -222,7 +220,7 @@ textarea:focus{border-color:var(--ink2);}
         <button class="ua-btn" onclick="event.stopPropagation();document.getElementById('photo-input').click()">Open camera →</button>
         <div class="ua-fmts">Or upload from gallery · Works with handwritten letters</div>
       </div>
-      <div class="privacy">🔒 Your photo is processed privately and deleted within 24 hours.</div>
+      <div class="privacy">🔒 Your photo is sent to the AI service for analysis. Avoid including unredacted ID numbers or account details.</div>
     </div>
 
     <!-- Text input -->
@@ -298,35 +296,11 @@ const LANGS = [
   {id:'sat',nat:'ᱥᱟᱱᱛᱟᱲᱤ',eng:'Santali',hint:'ᱮ ᱞᱚᱱ ᱟᱠᱟᱱᱟ।'},
   {id:'urd',nat:'اردو',eng:'Urdu',hint:'میرا قرض مسترد ہو گیا۔'},
   {id:'kas',nat:'کٲشُر',eng:'Kashmiri',hint:'میتھ قرض رد کیگیو۔'},
+  {id:'bod',nat:'बड़ो',eng:'Bodo'}, {id:'doi',nat:'डोगरी',eng:'Dogri'},
+  {id:'kon',nat:'कोंकणी',eng:'Konkani'}, {id:'mai',nat:'मैथिली',eng:'Maithili'},
+  {id:'mni',nat:'মেইতেই',eng:'Manipuri'}, {id:'nep',nat:'नेपाली',eng:'Nepali'},
+  {id:'san',nat:'संस्कृतम्',eng:'Sanskrit'}, {id:'snd',nat:'سنڌي',eng:'Sindhi'},
 ];
-
-// ── Demo data (used when API_BASE is empty) ──
-const DEMO = {
-  bias_score: 78,
-  verdict: 'likely_unfair',
-  verdict_label: 'Likely unfair rejection',
-  confidence: 'High confidence · 3 bias indicators found',
-  extracted: {
-    applicant_name:'Meena Devi',bank_name:'State Bank of India',
-    loan_amount:'₹2,40,000',loan_type:'Agricultural loan',
-    stated_reason:'Insufficient income',stated_reason_en:'Insufficient income',
-    location:'Baliapanda, Puri District, Odisha',occupation:'Farmer',
-    gender:'Female',detected_language:'Odia',
-  },
-  explanation:'ଆପଣଙ୍କ ଋଣ ଅସ୍ୱୀକୃତି ଅନ୍ୟାୟ ଦେଖାଯାଉଛି। ସହର ଅଞ୍ଚଳରେ ସମାନ ଆୟ ଥିବା ଆବେଦନକାରୀଙ୍କୁ ଏହି ବ୍ୟାଙ୍କ ଋଣ ଦେଇଛି।',
-  explanation_en:'Your loan rejection appears unfair. Applicants with the same income from urban areas were approved at this bank.',
-  legal_context:'RBI Priority Sector Lending mandate applies to agricultural loans.',
-  bias_indicators:[
-    {label:'Location (Rural Odisha)',severity:'high',score:78,evidence:'Applicants from rural Odisha are rejected 1.9× more than metro applicants.'},
-    {label:'Occupation: Farmer',severity:'high',score:62,evidence:'Farmer occupation correlates with caste proxies in model training data.'},
-    {label:'Gender: Female',severity:'medium',score:55,evidence:'Female applicants face 14–22% higher rejection rates at same credit profile.'},
-  ],
-  next_steps:[
-    {step_number:1,title:'Request a written explanation from the bank',detail:'Under RBI Fair Practices Code, you have the right to a written reason. Write to the branch manager.',action_link:'https://www.rbi.org.in/scripts/BS_CircularIndexDisplay.aspx',action_label:'View RBI Fair Practices Code →'},
-    {step_number:2,title:'Cite the Priority Sector Lending mandate',detail:'Your agricultural loan falls under PSL. Banks are legally required to lend to this category.',action_link:'https://www.rbi.org.in/Scripts/BS_ViewMasDirections.aspx?id=11959',action_label:'Read PSL Master Direction →'},
-    {step_number:3,title:'File a complaint with the RBI Ombudsman',detail:'File at the RBI IOS portal — completely free, online, in your language.',action_link:'https://cms.rbi.org.in/',action_label:'File RBI complaint →'},
-  ],
-};
 
 // ── State ──
 let selLang = 'hin', activeInput = 'pdf', running = false;
@@ -362,23 +336,17 @@ document.getElementById('photo-input').onchange = e => { if(e.target.files[0]) u
 // ── Upload file ──
 async function uploadFile(file) {
   if(running) return;
+  if(!API_BASE) { showErr('AI analysis is not configured yet. Please try again later; no sample result will be shown.'); return; }
+  if(file.size > 20 * 1024 * 1024) { showErr('File too large. Maximum size is 20 MB.'); return; }
   startProcessing();
   try {
-    let result;
-    if (!API_BASE) {
-      await fakeDelay();
-      result = DEMO;
-    } else {
-      const fd = new FormData();
-      fd.append('file', file);
-      const r = await fetch(`${API_BASE}/analyse/document`, {method:'POST', body:fd});
-      if (!r.ok) throw new Error(`Server error ${r.status}: ${await r.text()}`);
-      result = await r.json();
-    }
-    showResult(result);
-  } catch(e) {
-    showErr(e.message);
-  }
+    const fd = new FormData(); fd.append('file', file);
+    const r = await fetch(`${API_BASE}/analyse/document`, {method:'POST', body:fd});
+    const data = await r.json().catch(() => ({}));
+    if(!r.ok) throw new Error(data.detail || 'Analysis service error ('+r.status+').');
+    if(!data.extracted || !(data.bias_score === null || typeof data.bias_score === 'number')) throw new Error('The analysis service returned an invalid result.');
+    showResult(data);
+  } catch(e) { showErr(e.message || 'Could not reach the analysis service.'); }
 }
 
 // ── Submit text ──
@@ -386,25 +354,18 @@ async function submitText() {
   const text = document.getElementById('text-input').value.trim();
   if(text.length < 10) { showErr('Please write at least a sentence describing your rejection.'); return; }
   if(running) return;
+  if(!API_BASE) { showErr('AI analysis is not configured yet. Please try again later; no sample result will be shown.'); return; }
   startProcessing();
   try {
-    let result;
-    if (!API_BASE) {
-      await fakeDelay();
-      result = {...DEMO, verdict_label:'Possible unfair rejection', bias_score:61, verdict:'possible_unfair'};
-    } else {
-      const r = await fetch(`${API_BASE}/analyse/text`, {
-        method:'POST',
-        headers:{'Content-Type':'application/json'},
-        body: JSON.stringify({text, language_hint: LANGS.find(l=>l.id===selLang)?.eng}),
-      });
-      if(!r.ok) throw new Error(`Server error ${r.status}: ${await r.text()}`);
-      result = await r.json();
-    }
-    showResult(result);
-  } catch(e) {
-    showErr(e.message);
-  }
+    const r = await fetch(`${API_BASE}/analyse/text`, {
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({text, language_hint: LANGS.find(l=>l.id===selLang)?.eng}),
+    });
+    const data = await r.json().catch(() => ({}));
+    if(!r.ok) throw new Error(data.detail || 'Analysis service error ('+r.status+').');
+    if(!data.extracted || typeof data.bias_score !== 'number') throw new Error('The analysis service returned an invalid result.');
+    showResult(data);
+  } catch(e) { showErr(e.message || 'Could not reach the analysis service.'); }
 }
 
 // ── Processing animation ──
@@ -445,24 +406,26 @@ function animateSteps(i) {
   }
 }
 
-async function fakeDelay() {
-  return new Promise(r => setTimeout(r, PROC_STEPS.length * 800 + 500));
+// ── Show result ──
+function escapeHTML(value) {
+  const el = document.createElement('span');
+  el.textContent = String(value ?? '');
+  return el.innerHTML;
 }
 
-// ── Show result ──
 function showResult(d) {
   running = false;
   document.getElementById('step-processing').classList.add('hidden');
   document.getElementById('step-result').classList.remove('hidden');
 
-  const score = d.bias_score || 0;
+  const score = Number.isFinite(d.bias_score) ? d.bias_score : null;
   const scoreEl = document.getElementById('score-val');
-  scoreEl.textContent = score;
-  scoreEl.style.color = score>=70?'var(--red)':score>=50?'var(--amb)':'var(--grn)';
-
+  scoreEl.textContent = score === null ? '—' : score;
+  scoreEl.style.color = score === null ? 'var(--ink3)' : score>=70?'var(--red)':score>=50?'var(--amb)':'var(--grn)';
+  const cardState = d.verdict === 'likely_unfair' ? 'bad' : d.verdict === 'likely_fair' ? 'ok' : 'warn';
   const vc = document.getElementById('verdict-card');
-  vc.className = 'verdict-card ' + (score>=70?'vc-bad':score>=50?'vc-warn':'vc-ok');
-  document.getElementById('verdict-icon').textContent = score>=70?'⚠️':score>=50?'⚡':'✅';
+  vc.className = 'verdict-card vc-' + cardState;
+  document.getElementById('verdict-icon').textContent = cardState === 'bad' ? '⚠️' : cardState === 'ok' ? '✅' : 'ℹ️';
   document.getElementById('verdict-label').textContent = d.verdict_label || d.verdict || '';
   document.getElementById('verdict-conf').textContent = d.confidence || '';
   document.getElementById('verdict-body').textContent = d.explanation_en || d.explanation || '';
@@ -471,41 +434,33 @@ function showResult(d) {
   const ex = d.extracted || {};
   const fields = [
     {l:'Loan amount',v:ex.loan_amount||'Not detected',f:''},
-    {l:'Stated reason',v:ex.stated_reason_en||ex.stated_reason||'Not detected',f:score>=50?'⚑ Flagged for review':''},
+    {l:'Stated reason',v:ex.stated_reason_en||ex.stated_reason||'Not detected',f:(d.bias_indicators||[]).length?'⚑ Ask the lender to clarify':''},
     {l:'Your location',v:ex.location||'Not detected',f:''},
     {l:'Occupation',v:ex.occupation||'Not detected',f:''},
     {l:'Language detected',v:ex.detected_language||'Unknown',f:''},
     {l:'Bank name',v:ex.bank_name||'Not detected',f:''},
   ];
   document.getElementById('extracted-grid').innerHTML = fields.map(f =>
-    `<div class="ef"><div class="ef-label">${f.l}</div><div class="ef-val">${f.v}</div>${f.f?`<div class="ef-flag">${f.f}</div>`:''}</div>`
+    `<div class="ef"><div class="ef-label">${escapeHTML(f.l)}</div><div class="ef-val">${escapeHTML(f.v)}</div>${f.f?`<div class="ef-flag">${escapeHTML(f.f)}</div>`:''}</div>`
   ).join('');
 
   // Bias bars
   const bb = document.getElementById('bias-bars');
   if((d.bias_indicators||[]).length) {
-    bb.innerHTML = (d.bias_indicators||[]).map(ind => {
-      const cls = ind.severity==='high'?'h':ind.severity==='medium'?'m':'l';
-      const col = ind.severity==='high'?'var(--red)':ind.severity==='medium'?'var(--amb)':'var(--grn)';
-      return `<div class="brow">
-        <span class="blabel" title="${ind.evidence||''}">${ind.label}</span>
-        <div class="btrack"><div class="bfill ${cls}" style="width:${ind.score||0}%"></div></div>
-        <span class="bpct" style="color:${col}">${ind.score||0}%</span>
-      </div>`;
-    }).join('');
+    bb.innerHTML = (d.bias_indicators||[]).map(ind => `<div class="brow" style="display:block"><strong>${escapeHTML(ind.label||'Review signal')}</strong><div class="nst-detail">${escapeHTML(ind.description||'')}</div><div class="nst-detail">${escapeHTML(ind.evidence||'')}</div></div>`).join('');
   } else {
-    bb.innerHTML = '<div style="font-size:12px;color:var(--ink3);">No significant bias signals detected.</div>';
+    bb.innerHTML = '<div style="font-size:12px;color:var(--ink3);">The available information is not enough to identify a specific fairness signal. This does not mean the decision was fair.</div>';
   }
 
   // Next steps
   const ns = document.getElementById('nxt-steps');
   ns.innerHTML = (d.next_steps||[]).map(s =>
     `<div class="nxt-step">
-      <div class="nst-n">${s.step_number}</div>
+      <div class="nst-n">${escapeHTML(s.step_number)}</div>
       <div>
-        <div class="nst-title">${s.title}</div>
-        <div class="nst-detail">${s.detail}</div>
-        ${s.action_link?`<a class="nst-link" href="${s.action_link}" target="_blank" rel="noopener">${s.action_label||'Learn more →'}</a>`:''}
+        <div class="nst-title">${escapeHTML(s.title)}</div>
+        <div class="nst-detail">${escapeHTML(s.detail)}</div>
+        ${s.action_link?`<a class="nst-link" href="${s.action_link}" target="_blank" rel="noopener">${escapeHTML(s.action_label||'Learn more →')}</a>`:''}
       </div>
     </div>`
   ).join('');
