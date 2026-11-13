@@ -1,130 +1,110 @@
-LoanLens — AI Loan Fairness Auditor for India
-> Google Solution Challenge 2026 · Problem theme: **Unbiased AI Decision**
-AI-powered loan rejection analyser that helps any ordinary Indian citizen — in any of India's 22 scheduled languages — check whether their loan was rejected unfairly, and exactly what to do about it.
+<div align="center">
+  <img src="assets/loanlens-brand.jpg" alt="LoanLens — Fair lending, for everyone" width="100%">
+  <h1>LoanLens</h1>
+  <p><strong>Understand a loan rejection. Know what to check next.</strong></p>
+  <p>An AI-powered explainer for people in India reviewing a loan rejection letter or describing what happened.</p>
+  <p>
+    <a href="https://arnab05s.github.io/loanlens/">Open the live site</a> ·
+    <a href="https://loanlens-api-0lrc.onrender.com/health">API health</a> ·
+    <a href="https://loanlens-api-0lrc.onrender.com/docs">API docs</a>
+  </p>
+</div>
+
 ---
-Submission checklist
-[ ] GitHub repository (this repo) — public
-[ ] Live MVP link — 'https://arnab05s.github.io/loanlens/'
-[ ] Demo video — `loanlens_demo_walkthrough.html`
-[ ] Project deck — see `/docs/deck.pdf`
----
-Project structure
+
+## What LoanLens does
+
+LoanLens reads a borrower’s description or a rejection notice, extracts the case details, explains the stated reason in plain language, and suggests practical questions or next steps. It is an informational aid—not a lender, lawyer, credit bureau, or statistical fairness audit. A single application cannot prove discrimination, and lender-specific requirements should be confirmed with the lender.
+
+### Try it
+
+1. Open [LoanLens](https://arnab05s.github.io/loanlens/).
+2. Type what happened, upload a PDF/image, or take a photo of a rejection notice.
+3. Review the extracted facts, explanation, and suggested next steps. Check important requirements with the lender or an appropriate adviser.
+
+**Use synthetic or redacted material when possible.** Do not upload unredacted Aadhaar, PAN, account numbers, phone numbers, or other sensitive identifiers. Documents are sent to Google’s Gemini service for analysis; review the relevant provider privacy terms before submitting personal material.
+
+## Current capabilities
+
+| Area | Current implementation |
+| --- | --- |
+| Text | Case-specific analysis through the FastAPI backend, with a language hint where available |
+| Documents | PDF, JPEG, PNG, and WEBP uploads; maximum 20 MB |
+| AI response | Structured extraction, explanation, and next-step suggestions; service errors are shown instead of a fallback conclusion |
+| Browser UI | Static HTML, CSS, and JavaScript; no frontend build step |
+| Model | Gemini 3.5 Flash-Lite by default, with configured model fallbacks |
+
+### Language coverage — status matters
+
+The public page currently presents **14 selectable languages**: Assamese, Bengali, Hindi, Kashmiri, Kannada, Malayalam, Marathi, Odia, Punjabi, Santali, Tamil, Telugu, and Urdu. The backend accepted the synthetic test case in 20 of the 22 scheduled languages in our latest test; Dogri returned a service error on two attempts, and Sindhi’s response mixed scripts. Bodo, Dogri, Konkani, Maithili, Manipuri/Meitei, Nepali, Sanskrit, and Sindhi do not currently have a picker option in the public UI.
+
+This is an early functional check, not a native-speaker review, a fluency measure, or evidence that every financial recommendation is correct. Treat language availability as in progress rather than a guarantee of fully validated support for all 22 languages.
+
+## How it is built
+
+- `index.html` and `frontend/index.html` are the mirrored static web entry points.
+- `backend/main.py` is the FastAPI service; dependencies are listed in `backend/requirements.txt`.
+- The browser calls the backend’s text and document endpoints. The Gemini API key stays server-side as the Render `GEMINI_API_KEY` secret; never put it in HTML, JavaScript, or Git.
+- The app has no lender-wide decision dataset, so it cannot produce a defensible statistical bias score or establish that an individual decision was discriminatory.
+
+## Run locally
+
+Use Python 3.11+ and run the API from the repository root:
+
+```powershell
+python -m venv .venv
+.venv\Scripts\Activate.ps1
+pip install -r backend/requirements.txt
+$env:GEMINI_API_KEY = "your-key-in-your-local-shell-only"
+uvicorn main:app --app-dir backend --reload --port 8000
 ```
+
+Serve the static page from the repository root in a second terminal:
+
+```powershell
+python -m http.server 5500
+```
+
+For local testing, set the front-end API URL to `http://localhost:8000` using `window.LOANLENS_API_BASE` before the page’s configuration script runs, or use the local value in `API_BASE`. The backend’s `CORS_ORIGINS` must allow the page’s origin. Never commit a real key or `.env` file.
+
+## API endpoints
+
+| Method | Endpoint | Purpose |
+| --- | --- | --- |
+| `GET` | `/health` | Service health check |
+| `POST` | `/analyse/text` | Analyze text and optional language hint |
+| `POST` | `/analyse/document` | Analyze a PDF or supported image upload |
+| `GET` | `/docs` | Interactive API documentation |
+
+Example health check:
+
+```bash
+curl https://loanlens-api-0lrc.onrender.com/health
+```
+
+## Publishing and deploys
+
+The two hosted parts have separate automatic deploy sources:
+
+- **Website:** GitHub Pages publishes the repository’s `main` branch root. A commit to the web files or assets on `main` triggers the Pages build-and-deployment workflow.
+- **API:** the Render `loanlens-api` service watches `fix/real-analysis` and is set to auto-deploy on commits to that branch. Keep `GEMINI_API_KEY` in Render’s server-side environment/secret settings.
+
+After a frontend change, verify [the live site](https://arnab05s.github.io/loanlens/). After a backend change, check [API health](https://loanlens-api-0lrc.onrender.com/health) and the Render deployment status. **A commit to `main` does not, by itself, update the Render branch, and a commit to `fix/real-analysis` does not update GitHub Pages.** Keep the branches in sync when touching shared HTML, or merge/reconfigure only after reviewing the current draft pull request. The live UI and the API should both point at the same intended release.
+
+## Repository layout
+
+```text
 loanlens/
+├── assets/                 # README and site branding
 ├── backend/
-│   ├── main.py          ← complete FastAPI backend (single file)
-│   ├── requirements.txt
-│   └── Dockerfile
+│   ├── main.py             # FastAPI + Gemini analysis
+│   └── requirements.txt
 ├── frontend/
-│   └── index.html       ← complete citizen-mode UI (single file)
-├── docs/
-│   ├── loanlens_citizen_mode.html   ← full prototype demo
-│   └── loanlens_demo_walkthrough.html
+│   ├── assets/             # Branding for standalone frontend hosting
+│   └── index.html          # Mirrored static UI
+├── index.html              # GitHub Pages entry point (main branch root)
 └── README.md
 ```
----
-Local development (test before deploying)
-```bash
-# Backend
-cd backend
-pip install -r requirements.txt
-echo "GEMINI_API_KEY=your_key_here" > .env
-uvicorn main:app --reload --port 8000
-# Visit http://localhost:8000/docs to test all endpoints
 
-# Frontend — just open in browser
-open frontend/index.html
-# Set API_BASE = "http://localhost:8000" in the <script> config block
-```
----
-Deploy in 3 steps
-Step 1 — Deploy backend to Google Cloud Run (~15 min)
-```bash
-# Install gcloud CLI from https://cloud.google.com/sdk/docs/install
-
-# Authenticate
-gcloud auth login
-gcloud config set project YOUR_GCP_PROJECT_ID
-
-# Set your Gemini API key as a secret
-gcloud secrets create gemini-api-key --data-file=- <<< "YOUR_GEMINI_API_KEY"
-
-# Deploy from the backend/ folder
-cd backend
-gcloud run deploy loanlens-backend \
-  --source . \
-  --region asia-south1 \
-  --allow-unauthenticated \
-  --set-secrets=GEMINI_API_KEY=gemini-api-key:latest \
-  --memory 512Mi \
-  --timeout 60s
-
-# Copy the Service URL printed at the end — looks like:
-# https://loanlens-backend-XXXX-as.a.run.app
-```
-Step 2 — Set backend URL in frontend (~1 min)
-Open `frontend/index.html` and find the config block near the top:
-```javascript
-const API_BASE = "";  // ← paste your Cloud Run URL here
-// becomes:
-const API_BASE = "https://loanlens-backend-XXXX-as.a.run.app";
-```
-Step 3 — Deploy frontend to GitHub Pages (~5 min)
-```bash
-# From repo root
-git init
-git add .
-git commit -m "Initial LoanLens submission"
-git branch -M main
-git remote add origin https://github.com/YOUR_USERNAME/loanlens.git
-git push -u origin main
-
-# In GitHub:
-# Settings → Pages → Source → Deploy from branch → main → /frontend → Save
-# Your live URL: https://YOUR_USERNAME.github.io/loanlens
-```
----
-What to submit on Hack2Skill
-Field	Value
-Problem statement	Unbiased AI Decision — detecting and explaining bias in Indian loan rejections
-Solution overview	AI-powered citizen fairness auditor using Gemini 1.5 Flash + Python bias engine + Firebase
-Prototype link	`https://arnab05s.github.io/loanlens/`
-GitHub repo	`https://github.com/arnab05s/loanlens`
-Demo video	Upload the recorded screencast (≤20 min)
----
-Tech stack
-Layer	Technology
-AI extraction	Gemini 1.5 Flash (multimodal — PDF, image, text)
-AI explanation	Gemini 1.5 Flash (plain-language, all 22 languages)
-Bias engine	Python + Fairlearn + India-specific rule database
-Backend	FastAPI + Cloud Run
-Frontend	Vanilla HTML/JS (no build step — GitHub Pages ready)
-Storage	Firebase Firestore (optional)
----
-Supported input types
-Type	How it works
-PDF	Gemini reads directly as inline_data
-Image / photo	Gemini Vision handles blur, rotation, low light
-Text	Auto-detect language, extract and score
----
-Languages supported (all 22 scheduled languages of India)
-Assamese · Bengali · Bodo · Dogri · Gujarati · Hindi · Kannada · Kashmiri · Konkani · Maithili · Malayalam · Manipuri · Marathi · Nepali · Odia · Punjabi · Sanskrit · Santali · Sindhi · Tamil · Telugu · Urdu
----
-Test the API
-After deploying, test at: `https://loanlens-backend-XXXX-as.a.run.app/docs`
-```bash
-# Health check
-curl https://loanlens-backend-XXXX-as.a.run.app/health
-
-# Text analysis
-curl -X POST https://loanlens-backend-XXXX-as.a.run.app/analyse/text \
-  -H "Content-Type: application/json" \
-  -d '{"text": "मेरा लोन अस्वीकार हो गया। बैंक ने कहा क्षेत्र सेवायोग्य नहीं है।"}'
-
-# Document upload
-curl -X POST https://loanlens-backend-XXXX-as.a.run.app/analyse/document \
-  -F "file=@rejection_letter.pdf"
-```
----
-Team
-4 members · India · Google Solution Challenge 2026
+Contact:
+This website is maintained and created by [Arnab05S](https://github.com/Arnab05S/). Open an issue on GitHub for questions or bug reports or any other assistance.
