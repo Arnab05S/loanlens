@@ -14,7 +14,7 @@ from pydantic import BaseModel, Field
 load_dotenv()
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
 log = logging.getLogger(__name__)
-MODEL = os.getenv("GEMINI_MODEL", "gemini-3.8-flash")
+MODEL = os.getenv("GEMINI_MODEL", "gemini-3.6-flash")
 MAX_BYTES = 20 * 1024 * 1024
 MAX_TEXT = 5000
 SUPPORTED_MIME = {"application/pdf", "image/jpeg", "image/png", "image/webp"}
@@ -123,7 +123,7 @@ def _generate(contents, system):
 
 async def _generate_async(contents, system):
     try:
-        return await asyncio.wait_for(asyncio.to_thread(_generate, contents, system), timeout=55)
+        return await asyncio.wait_for(asyncio.to_thread(_generate, contents, system), timeout=85)
     except asyncio.TimeoutError as exc:
         raise AIServiceError("AI request timed out") from exc
 
