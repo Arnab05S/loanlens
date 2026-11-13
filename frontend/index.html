@@ -165,7 +165,7 @@ textarea:focus{border-color:var(--ink2);}
 
   <div class="hero">
     <div class="hero-title">Did your loan get<br>rejected unfairly?</div>
-    <div class="hero-sub">Upload your rejection letter, take a photo, or type what happened — in your language. LoanLens checks for hidden bias and tells you what to do next. Free, private, in 30 seconds.</div>
+    <div class="hero-sub">Upload a rejection letter, photo, or describe what happened in your language. LoanLens extracts the stated reason and suggests practical next steps. One application alone cannot prove discrimination.</div>
     <div class="hero-stats">
       <div class="hs"><div class="hs-v">22</div><div class="hs-l">Indian languages</div></div>
       <div class="hs"><div class="hs-v">Free</div><div class="hs-l">No registration</div></div>
@@ -203,7 +203,7 @@ textarea:focus{border-color:var(--ink2);}
       <div class="upload-area" onclick="document.getElementById('file-input').click()">
         <div class="ua-icon">📂</div>
         <div class="ua-title">Drop your file here, or tap to browse</div>
-        <div class="ua-sub">Works with rejection letters, notices, bank statements, screenshots</div>
+        <div class="ua-sub">Upload a rejection letter or notice (PDF, image, or screenshot)</div>
         <button class="ua-btn" onclick="event.stopPropagation();document.getElementById('file-input').click()">Choose file →</button>
         <div class="ua-fmts">PDF · JPG · PNG · WEBP · Screenshots</div>
       </div>
@@ -212,11 +212,11 @@ textarea:focus{border-color:var(--ink2);}
 
     <!-- Camera / photo upload -->
     <div id="zone-photo" class="hidden">
-      <input type="file" id="photo-input" accept="image/*" capture="environment">
+      <input type="file" id="photo-input" accept=".jpg,.jpeg,.png,.webp" capture="environment">
       <div class="upload-area" onclick="document.getElementById('photo-input').click()">
         <div class="ua-icon">📸</div>
         <div class="ua-title">Take a photo of your rejection letter</div>
-        <div class="ua-sub">Place the letter flat, ensure text is readable. AI handles blur and shadows.</div>
+        <div class="ua-sub">Place the letter flat and make sure the text is readable.</div>
         <button class="ua-btn" onclick="event.stopPropagation();document.getElementById('photo-input').click()">Open camera →</button>
         <div class="ua-fmts">Or upload from gallery · Works with handwritten letters</div>
       </div>
@@ -248,7 +248,7 @@ textarea:focus{border-color:var(--ink2);}
   <div id="step-result" class="hidden">
 
     <div class="verdict-card" id="verdict-card">
-      <div class="vc-score"><div class="vc-score-val" id="score-val">—</div><div style="font-size:9px;font-family:var(--mono);color:var(--ink3);">Bias risk score</div></div>
+      <div class="vc-score"><div class="vc-score-val" id="score-val">—</div><div style="font-size:9px;font-family:var(--mono);color:var(--ink3);">Statistical bias score (not inferred from one case)</div></div>
       <div style="font-size:20px;margin-bottom:6px;" id="verdict-icon">⚠️</div>
       <div class="vc-verdict" id="verdict-label">—</div>
       <div class="vc-conf" id="verdict-conf">—</div>
