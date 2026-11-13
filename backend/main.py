@@ -48,6 +48,24 @@ def _client():
     return genai.Client(api_key=key)
 
 
+def _provider_error_kind(exc):
+    """Return a safe diagnostic category without logging provider text or credentials."""
+    status = getattr(exc, "status_code", None)
+    if isinstance(status, int):
+        if status in (401, 403): return "provider_auth_error"
+        if status == 404: return "model_unavailable"
+        if status == 429: return "provider_quota_or_rate_limit"
+        if status >= 500: return "provider_server_error"
+    message = str(exc).casefold()
+    if any(term in message for term in ("api key", "unauthorized", "unauthenticated", "permission denied", "forbidden")):
+        return "provider_auth_error"
+    if any(term in message for term in ("quota", "resource_exhausted", "rate limit", "429")):
+        return "provider_quota_or_rate_limit"
+    if "model" in message and any(term in message for term in ("not found", "does not exist", "unsupported")):
+        return "model_unavailable"
+    return "provider_error_" + type(exc).__name__
+
+
 def _generate(contents, system):
     """Call Gemini with one retry for transient provider/network failures."""
     for attempt in range(2):
@@ -78,7 +96,7 @@ def _generate(contents, system):
             if attempt == 0:
                 time.sleep(0.4)
                 continue
-            raise AIServiceError(type(exc).__name__) from exc
+            raise AIServiceError(_provider_error_kind(exc)) from exc
 
 
 async def _generate_async(contents, system):
