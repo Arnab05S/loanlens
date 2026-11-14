@@ -54,6 +54,15 @@ class BackendAnalysisTests(unittest.TestCase):
         opaque = next(item for item in result["bias_indicators"] if item["label"] == "Request the basis behind the stated reasons")
         self.assertIn("does not establish an RBI violation", opaque["evidence"])
 
+    def test_serviceable_postal_code_area_phrase_gets_geo_review_flag_without_probability(self):
+        reason = "Property is outside the bank's serviceable postal-code area"
+        result = main.compute_bias_score(reason, reason)
+        self.assertIsNone(result["bias_score"])
+        flags = {item["label"]: item for item in result["bias_indicators"]}
+        label = "High-priority review flag: geography/serviceability criterion"
+        self.assertIn(label, flags)
+        self.assertIn("cannot show whether the rule is neutral", flags[label]["evidence"])
+
     def test_explicit_personal_characteristic_link_is_flagged_without_probability(self):
         reason = "Application rejected because the applicant is Muslim."
         result = main.compute_bias_score(reason, reason)
