@@ -30,7 +30,7 @@ LoanLens reads a borrower’s description or a rejection notice, extracts the ca
 | --- | --- |
 | Text | Case-specific analysis through the FastAPI backend, with a language hint where available |
 | Documents | PDF, JPEG/PNG/WEBP/HEIC/HEIF/BMP/GIF/TIFF, DOC/DOCX/ODT, XLS/XLSX, PPT/PPTX, TXT/MD/CSV/JSON/HTML/XML/RTF, EML, and ZIP; 20 MB per upload |
-| File handling | PDFs/photos use Gemini vision; DOCX/ODT/PPTX text and embedded images are extracted; XLSX cell values are read; legacy DOC/XLS/PPT are passed as supported document parts; ZIPs analyse up to 12 supported items within a 50 MB expanded-size limit |
+| File handling | PDFs/photos use Gemini vision; DOCX/ODT/PPTX text and embedded images are extracted; XLSX cell values are read; legacy DOC/XLS/PPT are sent directly to Gemini (provider parsing not live-verified); ZIPs analyse up to 12 supported items within a 50 MB expanded-size limit |
 | Fail-safe behavior | Unsupported, password-protected, corrupt, oversized, mismatched, or unreadable uploads return a clear error rather than a canned analysis |
 | AI response | Structured extraction, explanation, and next-step suggestions; service errors are shown instead of a fallback conclusion |
 | Browser UI | Static HTML, CSS, and JavaScript; no frontend build step |
@@ -38,7 +38,7 @@ LoanLens reads a borrower’s description or a rejection notice, extracts the ca
 
 ### Language coverage — status matters
 
-The public page currently offers **14 selectable languages**: Assamese, Bengali, Gujarati, Hindi, Kannada, Kashmiri, Malayalam, Marathi, Odia, Punjabi, Santali, Tamil, Telugu, and Urdu. Bodo, Dogri, Konkani, Maithili, Manipuri/Meitei, Nepali, Sanskrit, and Sindhi are not selectable in the current UI. A synthetic smoke test sent one machine-translated rejection scenario for each of the 22 scheduled languages; after individual retries for three transient model-output failures, all 22 returned structured responses. This checks basic API handling only—not translation accuracy, fluency, native-speaker quality, or legal correctness. Full 22-language support remains unvalidated.
+The public page currently offers **14 selectable languages**: Assamese, Bengali, Gujarati, Hindi, Kannada, Kashmiri, Malayalam, Marathi, Odia, Punjabi, Santali, Tamil, Telugu, and Urdu. Bodo, Dogri, Konkani, Maithili, Manipuri/Meitei, Nepali, Sanskrit, and Sindhi are not selectable in the current UI. The 13 November synthetic API matrix tested one machine-translated education-loan case per scheduled language: **20 passed** basic functional checks, **Dogri failed** twice with HTTP 503, and **Sindhi was partial** because its output script was unreliable. On 14 November, a full API-only rerun with those same 22 synthetic cases passed **22/22**: HTTP 200, intended language detection, structured native and English explanations, 2–4 next steps, and at least 80% of native-answer letters in the expected script. One transient server/network error required a single retry. The earlier Dogri and Sindhi gaps also passed their focused retests. This tests one machine-translated case per language—not native-speaker fluency, nuance, or legal correctness. The live `main` page still offers 14 choices; the draft PR branch exposes 22, but the matrix exercised the API directly, not all draft-page selectors. See `loanlens-language-test-report.md` and `loanlens-language-matrix-latest.json` for the detailed results.
 
 ## How it is built
 
