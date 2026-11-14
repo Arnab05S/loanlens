@@ -365,9 +365,9 @@ async def analyse(analysis, doc_type, request_id, source_text=None):
         raise AIServiceError("AI response is missing extracted facts")
     extracted = _clean_extraction(analysis["extracted"])
     if not extracted.get("loan_rejection_related"):
-        raise InvalidAnalysisInput("I couldn't identify a loan rejection in this material. Please describe the rejection, the reason the lender gave, and what you want help with.")
+        raise InvalidAnalysisInput("Not scoreable: I couldn't identify a loan rejection in this material. Please describe the rejection and the reason the lender gave.")
     if not any(extracted.get(k) for k in ("issue_summary", "stated_reason", "stated_reason_en", "loan_amount", "bank_name")):
-        raise InvalidAnalysisInput("I couldn't read enough about the rejection. Add the stated reason or a clearer copy of the notice and try again.")
+        raise InvalidAnalysisInput("Not scoreable: I couldn't read enough about the rejection. Add the stated reason or a clearer copy of the notice and try again.")
     review = compute_review_assessment(extracted.get("stated_reason"), extracted.get("stated_reason_en"),
                                  missing_information=extracted.get("missing_information"), source_text=source_text)
     native, english, next_steps, questions = _validate_answer(analysis, extracted.get("detected_language"))
