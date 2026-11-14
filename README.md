@@ -16,6 +16,20 @@
 
 LoanLens reads a borrower’s description or a rejection notice, extracts the case details, explains the stated reason in plain language, and suggests practical questions or next steps. It is an informational aid—not a lender, lawyer, credit bureau, or statistical fairness audit. A single application cannot prove discrimination, and lender-specific requirements should be confirmed with the lender.
 
+The **Review Priority Score (0–100)** is a deterministic, unvalidated triage heuristic computed from explicit evidence flags—not a probability of discrimination or an AI model’s finding of unfairness. Its fixed rubric uses the strongest matching signal weight plus 5 points per additional distinct signal, capped at 100:
+
+| Evidence signal in the submitted case | Base weight |
+| --- | ---: |
+| Explicit decision link to a personal characteristic | 95 |
+| Unexplained community/residential-profile criterion | 85 |
+| Explicit geography/serviceability criterion | 70 |
+| Stated refusal to disclose scoring/underwriting basis | 35 |
+| Missing specific basis or review route | 30 |
+| Reason too general to verify | 25 |
+| No predefined signal | 0 |
+
+A score of 0 means no predefined review signal was found; it does **not** establish that the decision was fair. Gender, occupation, location, or language alone do not raise the score. Non-rejection, unreadable, unsupported, or insufficient material receives no score.
+
 ### Try it
 
 1. Open [LoanLens](https://arnab05s.github.io/loanlens/).
@@ -32,7 +46,7 @@ LoanLens reads a borrower’s description or a rejection notice, extracts the ca
 | Documents | PDF, JPEG/PNG/WEBP/HEIC/HEIF/BMP/GIF/TIFF, DOC/DOCX/ODT, XLS/XLSX, PPT/PPTX, TXT/MD/CSV/JSON/HTML/XML/RTF, EML, and ZIP; 20 MB per upload |
 | File handling | PDFs/photos use Gemini vision; DOCX/ODT/PPTX text and embedded images are extracted; XLSX cell values are read; legacy DOC/XLS/PPT are sent directly to Gemini (provider parsing not live-verified); ZIPs analyse up to 12 supported items within a 50 MB expanded-size limit |
 | Fail-safe behavior | Unsupported, password-protected, corrupt, oversized, mismatched, or unreadable uploads return a clear error rather than a canned analysis |
-| AI response | Structured extraction, explanation, and next-step suggestions; service errors are shown instead of a fallback conclusion |
+| AI response | Structured extraction, explanation, case-specific next steps, qualitative evidence flags, and one deterministic Review Priority Score; not a statistical bias probability |
 | Browser UI | Static HTML, CSS, and JavaScript; no frontend build step |
 | Model | Gemini 3.5 Flash-Lite by default, with configured model fallbacks |
 
