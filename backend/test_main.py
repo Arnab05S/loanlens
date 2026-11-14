@@ -1,8 +1,21 @@
 import asyncio
+import io
 import unittest
+import zipfile
 from unittest.mock import AsyncMock, patch
 from fastapi.testclient import TestClient
 import main
+
+
+def synthetic_docx(text="The home loan was rejected because the property is outside the service area."):
+    document = ("<?xml version='1.0' encoding='UTF-8'?>"
+                "<w:document xmlns:w='http://schemas.openxmlformats.org/wordprocessingml/2006/main'>"
+                "<w:body><w:p><w:r><w:t>" + text + "</w:t></w:r></w:p></w:body></w:document>").encode()
+    stream = io.BytesIO()
+    with zipfile.ZipFile(stream, "w", zipfile.ZIP_DEFLATED) as archive:
+        archive.writestr("word/document.xml", document)
+    return stream.getvalue()
+
 
 class BackendAnalysisTests(unittest.TestCase):
     def test_single_case_never_gets_a_statistical_score(self):
@@ -163,6 +176,46 @@ class BackendAnalysisTests(unittest.TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertIn("repayment", response.json()["explanation_en"])
         self.assertEqual(response.json()["next_steps"][0]["title"], "Ask when the lender reported the payment")
+
+    def test_document_endpoint_extracts_docx_and_passes_case_text_to_gemini(self):
+        payload = {
+            "extracted": {"loan_rejection_related": True, "issue_summary": "Property outside service area",
+                          "stated_reason": "Property outside service area", "stated_reason_en": "Property outside service area",
+                          "detected_language": "English", "missing_information": []},
+            "explanation_native": "Ask the lender to explain the property service-area rule.",
+            "explanation_en": "Ask the lender to explain the property service-area rule.",
+            "next_steps": [{"title": "Request the applicable area rule", "detail": "Ask which property rule was applied."}],
+            "questions_for_user": [], "legal_context": None
+        }
+        with patch("main._generate_async", new=AsyncMock(return_value=payload)) as generate:
+            response = TestClient(main.app).post(
+                "/analyse/document",
+                files={"file": ("notice.docx", synthetic_docx(), "application/vnd.openxmlformats-officedocument.wordprocessingml.document")}
+            )
+        self.assertEqual(response.status_code, 200, response.text)
+        result = response.json()
+        self.assertEqual(result["document_format"], "docx")
+        self.assertIn("Property outside service area", result["extracted"]["stated_reason_en"])
+        contents = generate.await_args.args[0]
+        self.assertTrue(any(isinstance(item, str) and "outside the service area" in item for item in contents))
+
+    def test_document_endpoint_rejects_unsupported_file_without_calling_model(self):
+        with patch("main._generate_async", new=AsyncMock()) as generate:
+            response = TestClient(main.app).post(
+                "/analyse/document", files={"file": ("program.exe", b"MZ-not-a-document", "application/octet-stream")}
+            )
+        self.assertEqual(response.status_code, 415)
+        generate.assert_not_awaited()
+
+    def test_document_endpoint_reports_corrupt_docx_as_readability_error(self):
+        with patch("main._generate_async", new=AsyncMock()) as generate:
+            response = TestClient(main.app).post(
+                "/analyse/document",
+                files={"file": ("notice.docx", b"not-a-zip-file", "application/vnd.openxmlformats-officedocument.wordprocessingml.document")}
+            )
+        self.assertEqual(response.status_code, 422)
+        self.assertIn("damaged or unreadable", response.json()["detail"])
+        generate.assert_not_awaited()
 
     def test_provider_failure_is_503_not_422(self):
         with patch("main._generate_async", new=AsyncMock(side_effect=main.AIServiceError("provider unavailable"))):
