@@ -189,7 +189,36 @@ def _clean_extraction(data):
     return cleaned
 
 
-def compute_bias_score(stated_reason=None, stated_reason_en=None, missing_information=None, source_text=None):
+def _review_priority(signals):
+    """Score the need for human clarification, not the probability of discrimination."""
+    weights = {
+        "Reason is too general to verify": 25,
+        "High-priority review flag: geography/serviceability criterion": 70,
+        "High-priority review flag: undefined community/residential criterion": 85,
+        "Request the basis behind the stated reasons": 35,
+        "Decision basis or review route is missing": 30,
+        "Stated reason links the decision to a personal characteristic": 95,
+    }
+    points = [weights[item.get("label")] for item in signals if item.get("label") in weights]
+    score = min(100, max(points) + 5 * (len(points) - 1)) if points else 0
+    if score == 0:
+        label = "No predefined review signal detected"
+    elif score < 30:
+        label = "Low priority for clarification"
+    elif score < 60:
+        label = "Moderate priority for clarification"
+    elif score < 85:
+        label = "Elevated priority for human review"
+    else:
+        label = "High priority for human review"
+    note = (
+        "Rule-based review-priority heuristic: highest matching signal weight plus 5 for each additional distinct signal, capped at 100. "
+        "It is not a probability of discrimination. A score of 0 means no predefined signal was detected; it does not prove the decision was fair."
+    )
+    return score, label, note
+
+
+def compute_review_assessment(stated_reason=None, stated_reason_en=None, missing_information=None, source_text=None):
     """Return qualitative, evidence-based review flags; never score an individual's fairness risk."""
     reason_parts = []
     for value in (stated_reason_en, stated_reason):
@@ -300,9 +329,12 @@ def compute_bias_score(stated_reason=None, stated_reason_en=None, missing_inform
             "evidence": "The extracted stated reason is: " + reason + ". This is a review flag, not proof of unfair treatment or a legal conclusion."
         })
 
-    return {"bias_score": None, "verdict": "unclear",
+    score, score_label, score_note = _review_priority(signals)
+    return {"bias_score": None, "review_priority_score": score,
+            "review_priority_label": score_label, "review_priority_note": score_note,
+            "verdict": "unclear",
             "verdict_label": "A single application cannot establish whether the decision was unfair",
-            "confidence": "Qualitative evidence checks only — no statistical fairness score is supported by one case",
+            "confidence": "Review-priority heuristic, not a discrimination probability; 0 is not proof of fairness",
             "bias_indicators": signals}
 
 
@@ -336,7 +368,7 @@ async def analyse(analysis, doc_type, request_id, source_text=None):
         raise InvalidAnalysisInput("I couldn't identify a loan rejection in this material. Please describe the rejection, the reason the lender gave, and what you want help with.")
     if not any(extracted.get(k) for k in ("issue_summary", "stated_reason", "stated_reason_en", "loan_amount", "bank_name")):
         raise InvalidAnalysisInput("I couldn't read enough about the rejection. Add the stated reason or a clearer copy of the notice and try again.")
-    review = compute_bias_score(extracted.get("stated_reason"), extracted.get("stated_reason_en"),
+    review = compute_review_assessment(extracted.get("stated_reason"), extracted.get("stated_reason_en"),
                                  missing_information=extracted.get("missing_information"), source_text=source_text)
     native, english, next_steps, questions = _validate_answer(analysis, extracted.get("detected_language"))
     return {"request_id": request_id, "document_type": doc_type, "extracted": extracted, **review,
