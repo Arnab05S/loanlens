@@ -12,6 +12,53 @@ class BackendAnalysisTests(unittest.TestCase):
         self.assertEqual(len(result["bias_indicators"]), 1)
         self.assertIn("not proof", result["bias_indicators"][0]["evidence"])
 
+
+    def test_service_area_reason_and_missing_review_details_create_qualitative_flags(self):
+        result = main.compute_bias_score(
+            "Village outside bank branch service area", "Village outside bank branch service area",
+            missing_information=["The notice does not give a policy clause or review contact."],
+            source_text="The letter says the village is outside the branch service area and gives no policy clause or review contact."
+        )
+        self.assertIsNone(result["bias_score"])
+        labels = {item["label"] for item in result["bias_indicators"]}
+        self.assertIn("Reason is too general to verify", labels)
+        self.assertIn("Decision basis or review route is missing", labels)
+        self.assertTrue(all(item["score"] is None for item in result["bias_indicators"]))
+        self.assertEqual(result["verdict"], "unclear")
+
+    def test_explicit_personal_characteristic_link_is_flagged_without_probability(self):
+        reason = "Application rejected because the applicant is Muslim."
+        result = main.compute_bias_score(reason, reason)
+        self.assertIsNone(result["bias_score"])
+        self.assertIn("Stated reason links the decision to a personal characteristic",
+                      {item["label"] for item in result["bias_indicators"]})
+        self.assertTrue(all(item["score"] is None for item in result["bias_indicators"]))
+
+    def test_demographic_context_alone_is_not_a_review_signal(self):
+        reason = "Credit score below the stated threshold; applicant is a woman from a rural district"
+        result = main.compute_bias_score(reason, reason)
+        self.assertIsNone(result["bias_score"])
+        self.assertEqual(result["bias_indicators"], [])
+
+    def test_personal_characteristic_unlinked_to_decision_is_not_flagged(self):
+        reason = "Although I am a woman, my application was declined due to a low credit score."
+        result = main.compute_bias_score(reason, reason)
+        self.assertIsNone(result["bias_score"])
+        self.assertEqual(result["bias_indicators"], [])
+
+    def test_negated_personal_characteristic_link_is_not_flagged(self):
+        reason = "The bank says it did not reject my application because I am Muslim."
+        result = main.compute_bias_score(reason, reason)
+        self.assertIsNone(result["bias_score"])
+        self.assertEqual(result["bias_indicators"], [])
+
+    def test_phrase_variant_is_flagged_only_as_a_clarification_request(self):
+        reason = "Our district is outside the bank's service area"
+        result = main.compute_bias_score(reason, reason)
+        self.assertIsNone(result["bias_score"])
+        self.assertIn("Reason is too general to verify", {item["label"] for item in result["bias_indicators"]})
+        self.assertNotIn("unfair", result["bias_indicators"][0]["label"].lower())
+
     def test_specific_reason_does_not_create_a_bias_finding(self):
         result = main.compute_bias_score("Credit score below required threshold", "Credit score below required threshold")
         self.assertIsNone(result["bias_score"])
@@ -49,6 +96,27 @@ class BackendAnalysisTests(unittest.TestCase):
         self.assertNotEqual(outputs[0]["next_steps"][0]["title"], outputs[1]["next_steps"][0]["title"])
         self.assertIn("credit report", outputs[0]["explanation_en"].lower())
         self.assertIn("property", outputs[1]["explanation_en"].lower())
+
+    def test_http_endpoint_flags_missing_policy_detail_from_original_text(self):
+        payload = {
+            "extracted": {"loan_rejection_related": True, "issue_summary": "Service area restriction",
+                          "stated_reason": "District outside bank branch service area",
+                          "stated_reason_en": "District outside bank branch service area",
+                          "detected_language": "English", "missing_information": []},
+            "explanation_native": "Ask the bank which rule applies to this district.",
+            "explanation_en": "Ask the bank which rule applies to this district.",
+            "next_steps": [{"title": "Request the written service-area rule", "detail": "Ask for the specific policy and review contact."}],
+            "questions_for_user": [], "legal_context": None
+        }
+        text = "My district is outside the bank's service area, but the notice gives no policy clause or review contact."
+        with patch("main._generate_async", new=AsyncMock(return_value=payload)):
+            response = TestClient(main.app).post("/analyse/text", json={"text": text})
+        self.assertEqual(response.status_code, 200)
+        result = response.json()
+        self.assertIsNone(result["bias_score"])
+        labels = {item["label"] for item in result["bias_indicators"]}
+        self.assertIn("Reason is too general to verify", labels)
+        self.assertIn("Decision basis or review route is missing", labels)
 
     def test_malformed_answer_is_service_error_not_user_error(self):
         answer={"explanation_native":"short", "explanation_en":"short", "next_steps":[]}
