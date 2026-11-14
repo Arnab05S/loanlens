@@ -162,10 +162,10 @@ textarea:focus{border-color:var(--ink2);}
     <div class="hero-title">Did your loan get<br>rejected unfairly?</div>
     <div class="hero-sub">Upload a rejection letter, photo, or describe what happened in your language. LoanLens extracts the stated reason and suggests practical next steps. One application alone cannot prove discrimination.</div>
     <div class="hero-stats">
-      <div class="hs"><div class="hs-v">14</div><div class="hs-l">Language choices</div></div>
+      <div class="hs"><div class="hs-v">22</div><div class="hs-l">Language choices</div></div>
       <div class="hs"><div class="hs-v">Free</div><div class="hs-l">No registration</div></div>
-      <div class="hs"><div class="hs-v">30s</div><div class="hs-l">Average result time</div></div>
-      <div class="hs"><div class="hs-v">No saved files</div><div class="hs-l">by LoanLens</div></div>
+      <div class="hs"><div class="hs-v">AI</div><div class="hs-l">Case-specific response</div></div>
+      <div class="hs"><div class="hs-v">No saved copy</div><div class="hs-l">after analysis</div></div>
     </div>
   </div>
 
@@ -188,7 +188,7 @@ textarea:focus{border-color:var(--ink2);}
         <div class="icard-icon">✍️</div>
         <div class="icard-title">Type or paste</div>
         <div class="icard-sub">Write what happened in your own words or language</div>
-        <div class="icard-fmts">14 built-in choices; other languages are unvalidated</div>
+        <div class="icard-fmts">22 choices; translation quality is not verified</div>
       </div>
     </div>
 
@@ -220,9 +220,9 @@ textarea:focus{border-color:var(--ink2);}
 
     <!-- Text input -->
     <div id="zone-text" class="hidden">
-      <div style="font-size:11px;color:var(--ink3);margin-bottom:7px;">Choose one of 14 built-in languages; quality across all 22 scheduled languages is not yet validated:</div>
+      <div style="font-size:11px;color:var(--ink3);margin-bottom:7px;">Choose one of the 22 scheduled languages; translation quality may vary:</div>
       <div class="lang-row" id="lang-chips"></div>
-      <textarea id="text-input" rows="5" placeholder="Write what reason the bank gave for rejecting your loan. Choose one of the 14 built-in languages for the best-supported output..."></textarea>
+      <textarea id="text-input" rows="5" placeholder="Describe what happened in the selected language. Check translations and important advice before acting..."></textarea>
       <button class="analyse-btn" id="text-submit-btn" onclick="submitText()">Analyse for bias →</button>
     </div>
 
