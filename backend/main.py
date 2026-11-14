@@ -223,6 +223,7 @@ def compute_bias_score(stated_reason=None, stated_reason_en=None, missing_inform
             re.search(r"\b(?:negative\s+geograph(?:y|ic)|geograph(?:y|ic(?:al)?)\s+(?:restriction|exclusion|cluster|risk))\b", normalized_reason)
             or re.search(r"\b(?:non[- ]?serviceable|unserviceable|not serviceable)\b.{0,100}\b(?:pin[- ]?code|postal\s+code|cluster|service\s+area)\b", normalized_reason)
             or re.search(r"\b(?:pin[- ]?code|postal\s+code)\b.{0,100}\b(?:non[- ]?serviceable|unserviceable|not serviceable|cluster|exclusion|restriction)\b", normalized_reason)
+            or re.search(r"\b(?:serviceable|service)\s+(?:pin[- ]?code|postal[- ]?code|postal\s+code)(?:\s+(?:area|zone|region|cluster))?\b", normalized_reason)
         )
     )
     if geographic_cluster:
