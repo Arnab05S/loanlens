@@ -22,7 +22,7 @@ LoanLens reads a borrower’s description or a rejection notice, extracts the ca
 2. Type what happened, choose a supported file, use the camera, or drag a file into the upload area.
 3. Review the extracted facts, explanation, and suggested next steps. Check important requirements with the lender or an appropriate adviser.
 
-**Use synthetic or redacted material when possible.** Do not upload unredacted Aadhaar, PAN, account numbers, phone numbers, or other sensitive identifiers. Documents are sent to Google’s Gemini service for analysis; review the relevant provider privacy terms before submitting personal material.
+**Use synthetic or redacted material when possible.** Do not upload unredacted Aadhaar, PAN, account numbers, phone numbers, or other sensitive identifiers. LoanLens does not keep a permanent copy of uploaded files, but their content is sent to Google’s Gemini service for analysis; review the relevant provider privacy terms before submitting personal material.
 
 ## Current capabilities
 
@@ -66,6 +66,17 @@ python -m http.server 5500
 ```
 
 For local testing, set the front-end API URL to `http://localhost:8000` using `window.LOANLENS_API_BASE` before the page’s configuration script runs, or use the local value in `API_BASE`. The backend’s `CORS_ORIGINS` must allow the page’s origin. Never commit a real key or `.env` file.
+
+## Run tests
+
+From the repository root, install the backend dependencies and run the full mocked API and upload-parser suite:
+
+```bash
+python -m pip install -r backend/requirements.txt
+python -m unittest discover -s backend -v
+```
+
+The suite uses synthetic fixtures only; it does not call Gemini or require a live API key.
 
 ## API endpoints
 
