@@ -18,16 +18,46 @@ def synthetic_docx(text="The home loan was rejected because the property is outs
 
 
 class BackendAnalysisTests(unittest.TestCase):
-    def test_single_case_never_gets_a_statistical_score(self):
-        result = main.compute_bias_score("Insufficient income", "Insufficient income")
+    def test_single_case_never_gets_a_statistical_score_but_gets_review_priority(self):
+        result = main.compute_review_assessment("Insufficient income", "Insufficient income")
         self.assertIsNone(result["bias_score"])
+        self.assertEqual(result["review_priority_score"], 25)
+        self.assertEqual(result["review_priority_label"], "Low priority for clarification")
         self.assertEqual(result["verdict"], "unclear")
         self.assertEqual(len(result["bias_indicators"]), 1)
         self.assertIn("not proof", result["bias_indicators"][0]["evidence"])
+        self.assertIn("not a probability", result["review_priority_note"])
+
+    def test_no_predefined_signal_is_zero_but_not_a_fairness_finding(self):
+        result = main.compute_review_assessment("Credit score below stated threshold", "Credit score below stated threshold")
+        self.assertIsNone(result["bias_score"])
+        self.assertEqual(result["review_priority_score"], 0)
+        self.assertEqual(result["review_priority_label"], "No predefined review signal detected")
+        self.assertIn("does not prove the decision was fair", result["review_priority_note"])
+        self.assertEqual(result["bias_indicators"], [])
+
+    def test_review_priority_is_deterministic_and_caps_at_100(self):
+        reason = ("Negative Geography / Non-Serviceable Pin-Code Cluster and "
+                  "Internal Community & Residential Profile Stability Norms; rejected because applicant is Muslim")
+        source = reason + ". The institution is not obligated to disclose granular scoring parameters."
+        first = main.compute_review_assessment(reason, reason, source_text=source)
+        second = main.compute_review_assessment(reason, reason, source_text=source)
+        self.assertEqual(first["review_priority_score"], 100)
+        self.assertEqual(first["review_priority_score"], second["review_priority_score"])
+        self.assertEqual(first["review_priority_label"], "High priority for human review")
+        self.assertTrue(all(item["score"] is None for item in first["bias_indicators"]))
+
+    def test_demographic_context_alone_does_not_increase_review_priority(self):
+        result = main.compute_review_assessment(
+            "Credit score below stated threshold; applicant is a woman from a rural district",
+            "Credit score below stated threshold; applicant is a woman from a rural district"
+        )
+        self.assertEqual(result["review_priority_score"], 0)
+        self.assertEqual(result["bias_indicators"], [])
 
 
     def test_service_area_reason_and_missing_review_details_create_qualitative_flags(self):
-        result = main.compute_bias_score(
+        result = main.compute_review_assessment(
             "Village outside bank branch service area", "Village outside bank branch service area",
             missing_information=["The notice does not give a policy clause or review contact."],
             source_text="The letter says the village is outside the branch service area and gives no policy clause or review contact."
@@ -43,7 +73,7 @@ class BackendAnalysisTests(unittest.TestCase):
         reason = ("Negative Geography / Non-Serviceable Pin-Code Cluster and "
                   "Internal Community & Residential Profile Stability Norms")
         source = (reason + ". The institution is not obligated to disclose granular scoring parameters.")
-        result = main.compute_bias_score(reason, reason, source_text=source)
+        result = main.compute_review_assessment(reason, reason, source_text=source)
         self.assertIsNone(result["bias_score"])
         labels = {item["label"] for item in result["bias_indicators"]}
         self.assertIn("High-priority review flag: geography/serviceability criterion", labels)
@@ -51,12 +81,40 @@ class BackendAnalysisTests(unittest.TestCase):
         self.assertIn("Request the basis behind the stated reasons", labels)
         self.assertTrue(all(item["score"] is None for item in result["bias_indicators"]))
         self.assertEqual(result["verdict"], "unclear")
+        self.assertEqual(result["review_priority_score"], 95)
+        self.assertEqual(result["review_priority_label"], "High priority for human review")
         opaque = next(item for item in result["bias_indicators"] if item["label"] == "Request the basis behind the stated reasons")
         self.assertIn("does not establish an RBI violation", opaque["evidence"])
 
+    def test_synthetic_apex_style_letter_api_returns_high_review_priority_not_bias_probability(self):
+        reason = ("Negative Geography / Non-Serviceable Pin-Code Cluster (PIN: 452002) and "
+                  "Internal Community & Residential Profile Stability Norms")
+        text = ("A home-loan application was declined. The applicant's CIBIL score, salary, and "
+                "repayment track met the lender's baseline eligibility. The stated reasons were: " + reason +
+                ". The lender says it is not obligated to disclose granular scoring parameters.")
+        payload = {
+            "extracted": {"loan_rejection_related": True, "issue_summary": "Home loan rejected on stated area and profile rules",
+                          "bank_name": "Synthetic Lender", "loan_amount": "₹28,00,000", "loan_type": "Home Loan",
+                          "stated_reason": reason, "stated_reason_en": reason, "detected_language": "English",
+                          "missing_information": ["Exact criteria for the stated internal profile rule"]},
+            "explanation_native": "The lender cited geography and profile rules; their exact criteria are not in the notice.",
+            "explanation_en": "The lender cited geography and profile rules; their exact criteria are not in the notice.",
+            "next_steps": [{"title": "Request written criteria", "detail": "Ask for the exact rule and review route."}],
+            "questions_for_user": [], "legal_context": None,
+        }
+        with patch("main._generate_async", new=AsyncMock(return_value=payload)):
+            response = TestClient(main.app).post("/analyse/text", json={"text": text, "language_hint": "English"})
+        self.assertEqual(response.status_code, 200, response.text)
+        result = response.json()
+        self.assertEqual(result["review_priority_score"], 95)
+        self.assertEqual(result["review_priority_label"], "High priority for human review")
+        self.assertIsNone(result["bias_score"])
+        self.assertIn("not a probability", result["review_priority_note"])
+        self.assertNotIn("RBI violation", result["explanation_en"])
+
     def test_serviceable_postal_code_area_phrase_gets_geo_review_flag_without_probability(self):
         reason = "Property is outside the bank's serviceable postal-code area"
-        result = main.compute_bias_score(reason, reason)
+        result = main.compute_review_assessment(reason, reason)
         self.assertIsNone(result["bias_score"])
         flags = {item["label"]: item for item in result["bias_indicators"]}
         label = "High-priority review flag: geography/serviceability criterion"
@@ -65,7 +123,7 @@ class BackendAnalysisTests(unittest.TestCase):
 
     def test_explicit_personal_characteristic_link_is_flagged_without_probability(self):
         reason = "Application rejected because the applicant is Muslim."
-        result = main.compute_bias_score(reason, reason)
+        result = main.compute_review_assessment(reason, reason)
         self.assertIsNone(result["bias_score"])
         self.assertIn("Stated reason links the decision to a personal characteristic",
                       {item["label"] for item in result["bias_indicators"]})
@@ -73,31 +131,31 @@ class BackendAnalysisTests(unittest.TestCase):
 
     def test_demographic_context_alone_is_not_a_review_signal(self):
         reason = "Credit score below the stated threshold; applicant is a woman from a rural district"
-        result = main.compute_bias_score(reason, reason)
+        result = main.compute_review_assessment(reason, reason)
         self.assertIsNone(result["bias_score"])
         self.assertEqual(result["bias_indicators"], [])
 
     def test_personal_characteristic_unlinked_to_decision_is_not_flagged(self):
         reason = "Although I am a woman, my application was declined due to a low credit score."
-        result = main.compute_bias_score(reason, reason)
+        result = main.compute_review_assessment(reason, reason)
         self.assertIsNone(result["bias_score"])
         self.assertEqual(result["bias_indicators"], [])
 
     def test_negated_personal_characteristic_link_is_not_flagged(self):
         reason = "The bank says it did not reject my application because I am Muslim."
-        result = main.compute_bias_score(reason, reason)
+        result = main.compute_review_assessment(reason, reason)
         self.assertIsNone(result["bias_score"])
         self.assertEqual(result["bias_indicators"], [])
 
     def test_phrase_variant_is_flagged_only_as_a_clarification_request(self):
         reason = "Our district is outside the bank's service area"
-        result = main.compute_bias_score(reason, reason)
+        result = main.compute_review_assessment(reason, reason)
         self.assertIsNone(result["bias_score"])
         self.assertIn("Reason is too general to verify", {item["label"] for item in result["bias_indicators"]})
         self.assertNotIn("unfair", result["bias_indicators"][0]["label"].lower())
 
     def test_specific_reason_does_not_create_a_bias_finding(self):
-        result = main.compute_bias_score("Credit score below required threshold", "Credit score below required threshold")
+        result = main.compute_review_assessment("Credit score below required threshold", "Credit score below required threshold")
         self.assertIsNone(result["bias_score"])
         self.assertEqual(result["bias_indicators"], [])
 
@@ -196,6 +254,8 @@ class BackendAnalysisTests(unittest.TestCase):
             response=TestClient(main.app).post("/analyse/text", json={"text": "I repaid my loan but the report still shows overdue."})
         self.assertEqual(response.status_code, 200)
         self.assertIn("repayment", response.json()["explanation_en"])
+        self.assertIsNone(response.json()["bias_score"])
+        self.assertEqual(response.json()["review_priority_score"], 0)
         self.assertEqual(response.json()["next_steps"][0]["title"], "Ask when the lender reported the payment")
 
     def test_document_endpoint_extracts_docx_and_passes_case_text_to_gemini(self):
@@ -217,6 +277,7 @@ class BackendAnalysisTests(unittest.TestCase):
         result = response.json()
         self.assertEqual(result["document_format"], "docx")
         self.assertIn("Property outside service area", result["extracted"]["stated_reason_en"])
+        self.assertEqual(result["review_priority_score"], 25)
         contents = generate.await_args.args[0]
         self.assertTrue(any(isinstance(item, str) and "outside the service area" in item for item in contents))
 
