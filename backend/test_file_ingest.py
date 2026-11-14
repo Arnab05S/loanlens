@@ -91,6 +91,33 @@ class UploadIngestionTests(unittest.TestCase):
                 self.assertEqual(parts[0][1], "image/png")
                 self.assertTrue(parts[0][0].startswith(bytes.fromhex("89504E470D0A1A0A")))
 
+    def test_oversized_frame_is_rejected_before_copy(self):
+        with patch.object(ingest.Image, "MAX_IMAGE_PIXELS", 10), patch.object(Image.Image, "copy", side_effect=AssertionError("frame copied before dimension check")):
+            with self.assertRaisesRegex(ingest.UploadError, "too many pixels"):
+                ingest._to_gemini_images(PNG, ".png")
+
+    def test_multipage_tiff_conversion_enforces_aggregate_output_budget(self):
+        frames = [Image.new("RGB", (64, 64), color=(i * 40, 80, 120)) for i in range(4)]
+        stream = io.BytesIO()
+        frames[0].save(stream, format="TIFF", save_all=True, append_images=frames[1:])
+        for frame in frames:
+            frame.close()
+        data = stream.getvalue()
+        parts, _ = ingest._to_gemini_images(data, ".tiff")
+        budget = sum(len(payload) for payload, _ in parts) - 1
+        with patch.object(ingest, "MAX_EMBEDDED_IMAGE_BYTES", budget):
+            with self.assertRaisesRegex(ingest.UploadError, "combined processing limit"):
+                ingest._to_gemini_images(data, ".tiff")
+
+    def test_malformed_embedded_png_is_not_forwarded_as_an_image(self):
+        data = make_docx(text="Synthetic loan rejection", image=bytes.fromhex("89504E470D0A1A0A"))
+        text, parts, _ = ingest.prepare_upload(
+            "notice.docx", "application/vnd.openxmlformats-officedocument.wordprocessingml.document", data
+        )
+        self.assertIn("Synthetic loan rejection", text)
+        self.assertIn("embedded image could not be read", text)
+        self.assertEqual(parts, [])
+
     def test_docx_extracts_paragraph_text_and_embedded_image(self):
         data = make_docx("Rejected due to internal residential profile", PNG)
         text, parts, _ = ingest.prepare_upload("notice.docx", "application/vnd.openxmlformats-officedocument.wordprocessingml.document", data)
@@ -175,6 +202,15 @@ class UploadIngestionTests(unittest.TestCase):
         self.assertEqual(set(names), {"notice.txt", "image.png"})
         self.assertNotIn("escape.txt", text)
 
+    def test_zip_enforces_image_budget_across_all_supported_children(self):
+        data = make_zip({"one.docx": make_docx("Synthetic case one", PNG),
+                         "two.docx": make_docx("Synthetic case two", PNG)})
+        with patch.object(ingest, "MAX_EMBEDDED_IMAGES", 1):
+            text, parts, names = ingest.prepare_upload("documents.zip", "application/zip", data)
+        self.assertEqual(set(names), {"one.docx", "two.docx"})
+        self.assertEqual(len(parts), 1)
+        self.assertIn("image/document part(s) were omitted", text)
+
     def test_unknown_mismatched_corrupt_and_empty_files_fail_clearly(self):
         with self.assertRaisesRegex(ingest.UploadError, "file type.*not supported"):
             ingest.prepare_upload("notice.exe", "application/octet-stream", b"MZbinary")
@@ -195,6 +231,25 @@ class UploadIngestionTests(unittest.TestCase):
         malicious = b"<!DOCTYPE a [<!ENTITY x 'expanded'>]><a>&x;</a>"
         with self.assertRaisesRegex(ingest.UploadError, "XML declarations"):
             ingest.prepare_upload("notice.xml", "application/xml", malicious)
+
+    def test_utf16_xml_entity_declarations_are_rejected(self):
+        malicious = "<?xml version='1.0' encoding='UTF-16'?><!DOCTYPE a [<!ENTITY x 'expanded'>]><a>&x;</a>".encode("utf-16")
+        with self.assertRaisesRegex(ingest.UploadError, "XML declarations"):
+            ingest.prepare_upload("notice.xml", "application/xml", malicious)
+
+    def test_office_document_entity_declarations_are_rejected(self):
+        malicious = b"<!DOCTYPE w:document [<!ENTITY x 'expanded'>]><w:document xmlns:w='urn:w'><w:t>&x;</w:t></w:document>"
+        document = make_zip({"word/document.xml": malicious})
+        with self.assertRaisesRegex(ingest.UploadError, "XML declarations"):
+            ingest.prepare_upload(
+                "notice.docx", "application/vnd.openxmlformats-officedocument.wordprocessingml.document", document
+            )
+
+    def test_valid_utf16_xml_is_read(self):
+        valid = "<?xml version='1.0' encoding='UTF-16'?><notice>Loan rejected for stated income criterion</notice>".encode("utf-16")
+        text, parts, _ = ingest.prepare_upload("notice.xml", "application/xml", valid)
+        self.assertIn("Loan rejected for stated income criterion", text)
+        self.assertEqual(parts, [])
 
     def test_extracted_text_is_bounded(self):
         long_text = "x" * (ingest.MAX_TEXT_CHARS + 50)
