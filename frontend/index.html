@@ -194,20 +194,20 @@ textarea:focus{border-color:var(--ink2);}
 
     <!-- PDF / screenshot upload -->
     <div id="zone-pdf">
-      <input type="file" id="file-input" accept=".pdf,.jpg,.jpeg,.png,.webp">
+      <input type="file" id="file-input" accept=".pdf,.jpg,.jpeg,.png,.webp,.heic,.heif,.bmp,.gif,.tif,.tiff,.doc,.docx,.odt,.xls,.xlsx,.ppt,.pptx,.txt,.md,.csv,.json,.html,.htm,.xml,.rtf,.eml,.zip">
       <div class="upload-area" onclick="document.getElementById('file-input').click()">
         <div class="ua-icon">📂</div>
         <div class="ua-title">Drop your file here, or tap to browse</div>
         <div class="ua-sub">Upload a rejection letter or notice (PDF, image, or screenshot)</div>
         <button class="ua-btn" onclick="event.stopPropagation();document.getElementById('file-input').click()">Choose file →</button>
-        <div class="ua-fmts">PDF · JPG · PNG · WEBP · Screenshots</div>
+        <div class="ua-fmts">PDF · Photos · Word/ODT · Excel/CSV · PPT · Text · RTF · Email · ZIP</div>
       </div>
-      <div class="privacy">🔒 Your document is sent to the AI service for analysis. Avoid uploading unredacted ID numbers or account details.</div>
+      <div class="privacy">🔒 Uploaded content is sent to Google Gemini for analysis. Redact Aadhaar, PAN, account numbers, and phone numbers first.</div>
     </div>
 
     <!-- Camera / photo upload -->
     <div id="zone-photo" class="hidden">
-      <input type="file" id="photo-input" accept=".jpg,.jpeg,.png,.webp" capture="environment">
+      <input type="file" id="photo-input" accept="image/jpeg,image/png,image/webp,image/heic,image/heif,image/bmp,image/gif,image/tiff" capture="environment">
       <div class="upload-area" onclick="document.getElementById('photo-input').click()">
         <div class="ua-icon">📸</div>
         <div class="ua-title">Take a photo of your rejection letter</div>
@@ -215,7 +215,7 @@ textarea:focus{border-color:var(--ink2);}
         <button class="ua-btn" onclick="event.stopPropagation();document.getElementById('photo-input').click()">Open camera →</button>
         <div class="ua-fmts">Or upload from gallery · Works with handwritten letters</div>
       </div>
-      <div class="privacy">🔒 Your photo is sent to the AI service for analysis. Avoid including unredacted ID numbers or account details.</div>
+      <div class="privacy">🔒 Uploaded content is sent to Google Gemini for analysis. Redact Aadhaar, PAN, account numbers, and phone numbers first.</div>
     </div>
 
     <!-- Text input -->
@@ -243,7 +243,7 @@ textarea:focus{border-color:var(--ink2);}
   <div id="step-result" class="hidden">
 
     <div class="verdict-card" id="verdict-card">
-      <div class="vc-score"><div class="vc-score-val" id="score-val">—</div><div style="font-size:9px;font-family:var(--mono);color:var(--ink3);">Statistical bias score (not inferred from one case)</div></div>
+      <div class="vc-score"><div class="vc-score-val" id="score-val">—</div><div id="score-note" style="font-size:9px;font-family:var(--mono);color:var(--ink3);">Not scoreable from one case</div></div>
       <div style="font-size:20px;margin-bottom:6px;" id="verdict-icon">⚠️</div>
       <div class="vc-verdict" id="verdict-label">—</div>
       <div class="vc-conf" id="verdict-conf">—</div>
@@ -254,7 +254,7 @@ textarea:focus{border-color:var(--ink2);}
     <div class="extracted-grid" id="extracted-grid"></div>
 
     <div class="bias-panel">
-      <div class="bp-title">Bias signals detected</div>
+      <div class="bp-title">Case review flags</div>
       <div id="bias-bars"></div>
     </div>
 
@@ -324,9 +324,26 @@ function selInput(type) {
   });
 }
 
+function isValidAnalysisResult(data) {
+  const score = data && data.bias_score;
+  const validScore = score === null || (typeof score === 'number' && Number.isFinite(score) && score >= 0 && score <= 100);
+  return !!(data && data.extracted && typeof data.extracted === 'object' && validScore &&
+    Array.isArray(data.bias_indicators) && Array.isArray(data.next_steps));
+}
+
 // ── File input wiring ──
 document.getElementById('file-input').onchange = e => { if(e.target.files[0]) uploadFile(e.target.files[0]); };
 document.getElementById('photo-input').onchange = e => { if(e.target.files[0]) uploadFile(e.target.files[0]); };
+window.addEventListener('dragover', e => e.preventDefault(), true);
+window.addEventListener('drop', e => e.preventDefault(), true);
+document.querySelectorAll('#zone-pdf .upload-area, #zone-photo .upload-area').forEach(zone => {
+  zone.addEventListener('dragover', e => e.preventDefault());
+  zone.addEventListener('drop', e => {
+    e.preventDefault();
+    const file = e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files[0];
+    if(file) uploadFile(file);
+  });
+});
 
 // ── Upload file ──
 async function uploadFile(file) {
@@ -339,7 +356,7 @@ async function uploadFile(file) {
     const r = await fetch(`${API_BASE}/analyse/document`, {method:'POST', body:fd});
     const data = await r.json().catch(() => ({}));
     if(!r.ok) throw new Error(data.detail || 'Analysis service error ('+r.status+').');
-    if(!data.extracted || !(data.bias_score === null || typeof data.bias_score === 'number')) throw new Error('The analysis service returned an invalid result.');
+    if(!isValidAnalysisResult(data)) throw new Error('The analysis service returned an invalid result.');
     showResult(data);
   } catch(e) { showErr(e.message || 'Could not reach the analysis service.'); }
 }
@@ -358,17 +375,17 @@ async function submitText() {
     });
     const data = await r.json().catch(() => ({}));
     if(!r.ok) throw new Error(data.detail || 'Analysis service error ('+r.status+').');
-    if(!data.extracted || typeof data.bias_score !== 'number') throw new Error('The analysis service returned an invalid result.');
+    if(!isValidAnalysisResult(data)) throw new Error('The analysis service returned an invalid result.');
     showResult(data);
   } catch(e) { showErr(e.message || 'Could not reach the analysis service.'); }
 }
 
 // ── Processing animation ──
 const PROC_STEPS = [
-  'Reading document with Gemini Vision',
+  'Reading your document or image',
   'Detecting language automatically',
   'Extracting loan details and rejection reason',
-  'Running India-specific bias checks',
+  'Checking for evidence-based review flags',
   'Generating plain-language explanation',
 ];
 
@@ -402,21 +419,17 @@ function animateSteps(i) {
 }
 
 // ── Show result ──
-function escapeHTML(value) {
-  const el = document.createElement('span');
-  el.textContent = String(value ?? '');
-  return el.innerHTML;
-}
-
 function showResult(d) {
   running = false;
   document.getElementById('step-processing').classList.add('hidden');
   document.getElementById('step-result').classList.remove('hidden');
 
-  const score = Number.isFinite(d.bias_score) ? d.bias_score : null;
+  const score = typeof d.bias_score === 'number' && Number.isFinite(d.bias_score) && d.bias_score >= 0 && d.bias_score <= 100 ? d.bias_score : null;
   const scoreEl = document.getElementById('score-val');
   scoreEl.textContent = score === null ? '—' : score;
-  scoreEl.style.color = score === null ? 'var(--ink3)' : score>=70?'var(--red)':score>=50?'var(--amb)':'var(--grn)';
+  scoreEl.style.color = score === null ? 'var(--ink3)' : score >= 70 ? 'var(--red)' : score >= 50 ? 'var(--amb)' : 'var(--grn)';
+  document.getElementById('score-note').textContent = score === null ? 'Not scoreable from one case' : 'Statistical score';
+
   const cardState = d.verdict === 'likely_unfair' ? 'bad' : d.verdict === 'likely_fair' ? 'ok' : 'warn';
   const vc = document.getElementById('verdict-card');
   vc.className = 'verdict-card vc-' + cardState;
@@ -425,40 +438,42 @@ function showResult(d) {
   document.getElementById('verdict-conf').textContent = d.confidence || '';
   document.getElementById('verdict-body').textContent = d.explanation_en || d.explanation || '';
 
-  // Extracted fields
   const ex = d.extracted || {};
+  const flags = Array.isArray(d.bias_indicators) ? d.bias_indicators : [];
   const fields = [
     {l:'Loan amount',v:ex.loan_amount||'Not detected',f:''},
-    {l:'Stated reason',v:ex.stated_reason_en||ex.stated_reason||'Not detected',f:(d.bias_indicators||[]).length?'⚑ Ask the lender to clarify':''},
+    {l:'Stated reason',v:ex.stated_reason_en||ex.stated_reason||'Not detected',f:flags.length?'⚑ Review the stated reason':''},
     {l:'Your location',v:ex.location||'Not detected',f:''},
     {l:'Occupation',v:ex.occupation||'Not detected',f:''},
     {l:'Language detected',v:ex.detected_language||'Unknown',f:''},
     {l:'Bank name',v:ex.bank_name||'Not detected',f:''},
   ];
   document.getElementById('extracted-grid').innerHTML = fields.map(f =>
-    `<div class="ef"><div class="ef-label">${escapeHTML(f.l)}</div><div class="ef-val">${escapeHTML(f.v)}</div>${f.f?`<div class="ef-flag">${escapeHTML(f.f)}</div>`:''}</div>`
+    '<div class="ef"><div class="ef-label">' + escapeHTML(f.l) + '</div><div class="ef-val">' + escapeHTML(f.v) + '</div>' +
+    (f.f ? '<div class="ef-flag">' + escapeHTML(f.f) + '</div>' : '') + '</div>'
   ).join('');
 
-  // Bias bars
   const bb = document.getElementById('bias-bars');
-  if((d.bias_indicators||[]).length) {
-    bb.innerHTML = (d.bias_indicators||[]).map(ind => `<div class="brow" style="display:block"><strong>${escapeHTML(ind.label||'Review signal')}</strong><div class="nst-detail">${escapeHTML(ind.description||'')}</div><div class="nst-detail">${escapeHTML(ind.evidence||'')}</div></div>`).join('');
+  if (flags.length) {
+    bb.innerHTML = '<div class="nst-detail" style="margin-bottom:8px;">These are prompts for clarification or human review, not a finding that the lender acted unfairly.</div>' +
+      flags.map(ind => '<div class="brow" style="display:block"><strong>' + escapeHTML(ind.label || 'Review signal') + '</strong><div class="nst-detail">' +
+        escapeHTML(ind.description || '') + '</div><div class="nst-detail">' + escapeHTML(ind.evidence || '') + '</div></div>').join('');
   } else {
-    bb.innerHTML = '<div style="font-size:12px;color:var(--ink3);">The available information is not enough to identify a specific fairness signal. This does not mean the decision was fair.</div>';
+    bb.innerHTML = '<div style="font-size:12px;color:var(--ink3);">No specific review flag was identified in the supplied details. This does not establish that the decision was fair.</div>';
   }
 
-  // Next steps
   const ns = document.getElementById('nxt-steps');
-  ns.innerHTML = (d.next_steps||[]).map(s =>
-    `<div class="nxt-step">
-      <div class="nst-n">${escapeHTML(s.step_number)}</div>
-      <div>
-        <div class="nst-title">${escapeHTML(s.title)}</div>
-        <div class="nst-detail">${escapeHTML(s.detail)}</div>
-        ${s.action_link?`<a class="nst-link" href="${s.action_link}" target="_blank" rel="noopener">${escapeHTML(s.action_label||'Learn more →')}</a>`:''}
-      </div>
-    </div>`
-  ).join('');
+  ns.innerHTML = (Array.isArray(d.next_steps) ? d.next_steps : []).map(s => {
+    let link = '';
+    if (typeof s.action_link === 'string') {
+      try {
+        const url = new URL(s.action_link);
+        if (url.protocol === 'https:') link = '<a class="nst-link" href="' + escapeHTML(url.href) + '" target="_blank" rel="noopener">' + escapeHTML(s.action_label || 'Learn more →') + '</a>';
+      } catch (_) {}
+    }
+    return '<div class="nxt-step"><div class="nst-n">' + escapeHTML(s.step_number ?? '') + '</div><div><div class="nst-title">' +
+      escapeHTML(s.title || '') + '</div><div class="nst-detail">' + escapeHTML(s.detail || '') + '</div>' + link + '</div></div>';
+  }).join('');
 }
 
 // ── Error ──
