@@ -28,7 +28,7 @@ The **Review Priority Score (0–100)** is a deterministic, unvalidated triage h
 | Reason too general to verify | 25 |
 | No predefined signal | 0 |
 
-A score of 0 means no predefined review signal was found; it does **not** establish that the decision was fair. Gender, occupation, location, or language alone do not raise the score. Non-rejection, unreadable, unsupported, or insufficient material receives no score.
+A score of 0 means no predefined review signal was found; it does **not** establish that the decision was fair. Gender, occupation, location, or language alone do not raise the score. Non-rejection, unreadable, unsupported, or insufficient material receives no score. Live synthetic smoke tests on 14 November returned 0 for a clear threshold-only rejection, 100 for explicit geography plus community rules with opaque/missing-review details, and 75 for a PNG notice citing service-area restriction and missing review details. These confirm the end-to-end output wiring only; the weights are not empirically calibrated or statistically validated.
 
 ### Try it
 
