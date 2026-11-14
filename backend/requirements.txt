@@ -2,8 +2,9 @@ fastapi==0.111.0
 uvicorn[standard]==0.29.0
 python-multipart==0.0.9
 python-dotenv==1.0.1
-google-genai>=1.0.0
+google-genai==1.46.0
 pydantic==2.7.1
 openpyxl==3.1.5
 striprtf==0.0.35
 Pillow==12.3.0
+defusedxml==0.7.1
