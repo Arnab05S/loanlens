@@ -218,6 +218,47 @@ def compute_bias_score(stated_reason=None, stated_reason_en=None, missing_inform
             "evidence": "The stated reason is: " + reason + ". Ask the lender to identify the specific criterion; this is not proof of unfair treatment."
         })
 
+    geographic_cluster = bool(
+        reason and (
+            re.search(r"\b(?:negative\s+geograph(?:y|ic)|geograph(?:y|ic(?:al)?)\s+(?:restriction|exclusion|cluster|risk))\b", normalized_reason)
+            or re.search(r"\b(?:non[- ]?serviceable|unserviceable|not serviceable)\b.{0,100}\b(?:pin[- ]?code|postal\s+code|cluster|service\s+area)\b", normalized_reason)
+            or re.search(r"\b(?:pin[- ]?code|postal\s+code)\b.{0,100}\b(?:non[- ]?serviceable|unserviceable|not serviceable|cluster|exclusion|restriction)\b", normalized_reason)
+        )
+    )
+    if geographic_cluster:
+        signals.append({
+            "label": "High-priority review flag: geography/serviceability criterion",
+            "description": "The stated reason relies on a location or postal-code serviceability rule. Ask the lender for the exact written rule, how it applies to this property, and a review route.",
+            "severity": "high", "score": None,
+            "evidence": "A geography-based criterion is explicitly named. This is a human-review flag; the notice alone cannot show whether the rule is neutral, consistently applied, or unfair."
+        })
+
+    community_rule = bool(
+        reason and re.search(
+            r"\b(?:community|residential\s+profile)\b.{0,100}\b(?:stability|norms?|criteria|policy|restriction|profile)\b",
+            normalized_reason
+        )
+    )
+    if community_rule:
+        signals.append({
+            "label": "High-priority review flag: undefined community/residential criterion",
+            "description": "The stated reason cites an internal community or residential-profile rule without explaining what it measures. Ask what data and criteria the rule uses and whether a human review is available.",
+            "severity": "high", "score": None,
+            "evidence": "The notice expressly names a community/residential-profile criterion. It does not establish that a protected trait or proxy was used, or that discrimination occurred."
+        })
+
+    withheld_detail = bool(re.search(
+        r"\b(?:not\s+obligated\s+to|will\s+not|cannot|unable\s+to)\s+disclose\b.{0,100}\b(?:granular|specific|internal)\b.{0,50}\b(?:scoring|underwriting|credit)\s+(?:parameters|criteria|rules)\b",
+        source, re.I
+    ))
+    if withheld_detail:
+        signals.append({
+            "label": "Request the basis behind the stated reasons",
+            "description": "The notice says detailed scoring parameters will not be disclosed. Ask the lender to clarify the main criteria behind its stated rejection reasons and provide its grievance or review channel.",
+            "severity": "medium", "score": None,
+            "evidence": "The notice mentions non-disclosure of granular scoring parameters. That statement alone does not establish an RBI violation or prove unfair treatment."
+        })
+
     gap_targets = (
         r"\bpolicy\s+(?:clause|reference|citation)\b",
         r"\bspecific\s+(?:decision\s+)?criteria?\b",
