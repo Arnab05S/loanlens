@@ -160,7 +160,7 @@ textarea:focus{border-color:var(--ink2);}
 
   <div class="hero">
     <div class="hero-title">Did your loan get<br>rejected unfairly?</div>
-    <div class="hero-sub">Upload a rejection letter, photo, or describe what happened in your language. LoanLens extracts the stated reason and suggests practical next steps. One application alone cannot prove discrimination.</div>
+    <div class="hero-sub">Upload your rejection letter, take a photo, or describe what happened — in your language. LoanLens highlights stated reasons and missing details that may need review, then suggests what to check next. Free, no registration; response times vary, especially after an idle period.</div>
     <div class="hero-stats">
       <div class="hs"><div class="hs-v">14</div><div class="hs-l">Language choices</div></div>
       <div class="hs"><div class="hs-v">Free</div><div class="hs-l">No registration</div></div>
@@ -176,7 +176,7 @@ textarea:focus{border-color:var(--ink2);}
         <div class="icard-icon">📄</div>
         <div class="icard-title">Upload document</div>
         <div class="icard-sub">Rejection notice: PDF, photo, Office, or text file</div>
-        <div class="icard-fmts">PDF · JPG · PNG · WEBP</div>
+        <div class="icard-fmts">PDF · JPG · PNG · Screenshot · Word doc</div>
       </div>
       <div class="icard" id="uc-photo" onclick="selInput('photo')">
         <div class="icard-icon">📸</div>
@@ -198,11 +198,11 @@ textarea:focus{border-color:var(--ink2);}
       <div class="upload-area" onclick="document.getElementById('file-input').click()">
         <div class="ua-icon">📂</div>
         <div class="ua-title">Drop your file here, or tap to browse</div>
-        <div class="ua-sub">Upload a rejection letter or notice (PDF, image, or screenshot)</div>
+        <div class="ua-sub">Works with rejection letters, notices, bank statements, screenshots</div>
         <button class="ua-btn" onclick="event.stopPropagation();document.getElementById('file-input').click()">Choose file →</button>
         <div class="ua-fmts">PDF · Photos · Word/ODT · Excel/CSV · PPT · Text · RTF · Email · ZIP</div>
       </div>
-      <div class="privacy">🔒 Uploaded content is sent to Google Gemini for analysis. Redact Aadhaar, PAN, account numbers, and phone numbers first.</div>
+      <div class="privacy">🔒 Uploaded document content is sent to Google Gemini for analysis. Redact Aadhaar, PAN, account numbers, and phone numbers first.</div>
     </div>
 
     <!-- Camera / photo upload -->
@@ -211,11 +211,11 @@ textarea:focus{border-color:var(--ink2);}
       <div class="upload-area" onclick="document.getElementById('photo-input').click()">
         <div class="ua-icon">📸</div>
         <div class="ua-title">Take a photo of your rejection letter</div>
-        <div class="ua-sub">Place the letter flat and make sure the text is readable.</div>
+        <div class="ua-sub">Place the letter flat in good lighting; blurry photos may not be readable.</div>
         <button class="ua-btn" onclick="event.stopPropagation();document.getElementById('photo-input').click()">Open camera →</button>
         <div class="ua-fmts">Or upload from gallery · Works with handwritten letters</div>
       </div>
-      <div class="privacy">🔒 Uploaded content is sent to Google Gemini for analysis. Redact Aadhaar, PAN, account numbers, and phone numbers first.</div>
+      <div class="privacy">🔒 Uploaded photo content is sent to Google Gemini for analysis. Redact personal identifiers before uploading.</div>
     </div>
 
     <!-- Text input -->
@@ -346,17 +346,22 @@ document.querySelectorAll('#zone-pdf .upload-area, #zone-photo .upload-area').fo
 // ── Upload file ──
 async function uploadFile(file) {
   if(running) return;
-  if(!API_BASE) { showErr('AI analysis is not configured yet. Please try again later; no sample result will be shown.'); return; }
+  if(!API_BASE) { showErr('AI analysis is not configured yet. No sample result will be shown. Please try again later.'); return; }
   if(file.size > 20 * 1024 * 1024) { showErr('File too large. Maximum size is 20 MB.'); return; }
   startProcessing();
   try {
-    const fd = new FormData(); fd.append('file', file);
+    const fd = new FormData();
+    fd.append('file', file);
     const r = await fetch(`${API_BASE}/analyse/document`, {method:'POST', body:fd});
-    const data = await r.json().catch(() => ({}));
-    if(!r.ok) throw new Error(data.detail || 'Analysis service error ('+r.status+').');
-    if(!isValidAnalysisResult(data)) throw new Error('The analysis service returned an invalid result.');
-    showResult(data);
-  } catch(e) { showErr(e.message || 'Could not reach the analysis service.'); }
+    const data = await r.json().catch(() => null);
+    if (!r.ok) throw new Error((data && data.detail) || `File analysis failed (HTTP ${r.status}).`);
+    if (!data) throw new Error('The analysis service returned an unreadable response. Please try again.');
+    const result = data;
+    if(!isValidAnalysisResult(result)) throw new Error('The analysis service returned an invalid result.');
+    showResult(result);
+  } catch(e) {
+    showErr(e.message);
+  }
 }
 
 // ── Submit text ──
@@ -364,18 +369,21 @@ async function submitText() {
   const text = document.getElementById('text-input').value.trim();
   if(text.length < 10) { showErr('Please write at least a sentence describing your rejection.'); return; }
   if(running) return;
-  if(!API_BASE) { showErr('AI analysis is not configured yet. Please try again later; no sample result will be shown.'); return; }
+  if(!API_BASE) { showErr('AI analysis is not configured yet. No sample result will be shown. Please try again later.'); return; }
   startProcessing();
   try {
     const r = await fetch(`${API_BASE}/analyse/text`, {
-      method:'POST', headers:{'Content-Type':'application/json'},
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
       body: JSON.stringify({text, language_hint: LANGS.find(l=>l.id===selLang)?.eng}),
     });
-    const data = await r.json().catch(() => ({}));
-    if(!r.ok) throw new Error(data.detail || 'Analysis service error ('+r.status+').');
-    if(!isValidAnalysisResult(data)) throw new Error('The analysis service returned an invalid result.');
-    showResult(data);
-  } catch(e) { showErr(e.message || 'Could not reach the analysis service.'); }
+    if(!r.ok) throw new Error(`Server error ${r.status}: ${await r.text()}`);
+    const result = await r.json();
+    if(!isValidAnalysisResult(result)) throw new Error('The analysis service returned an invalid result.');
+    showResult(result);
+  } catch(e) {
+    showErr(e.message);
+  }
 }
 
 // ── Processing animation ──
@@ -414,6 +422,10 @@ function animateSteps(i) {
     if(dot) dot.className='pdot spin';
     setTimeout(() => animateSteps(i+1), 700 + Math.random()*400);
   }
+}
+
+function escapeHTML(value) {
+  return String(value ?? '').replace(/[&<>"']/g, ch => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch]));
 }
 
 // ── Show result ──
