@@ -161,6 +161,12 @@ class BackendAnalysisTests(unittest.TestCase):
         self.assertIn("do not add plausible explanations", prompt)
         self.assertIn("do not claim lenders generally restrict areas", prompt)
 
+    def test_answer_prompt_requests_written_policy_basis_and_review_route(self):
+        prompt = main.ANSWER_PROMPT.casefold()
+        self.assertIn("exact written criterion", prompt)
+        self.assertIn("grievance/review route", prompt)
+        self.assertIn("do not imply that an appeal is guaranteed", prompt)
+
     def test_malformed_answer_is_service_error_not_user_error(self):
         answer={"explanation_native":"short", "explanation_en":"short", "next_steps":[]}
         with self.assertRaises(main.AIServiceError):
