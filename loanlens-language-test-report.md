@@ -31,4 +31,4 @@ The same 22 machine-translated synthetic cases were submitted sequentially to th
 
 ## Focused retests — 14 November 2026
 
-Before the full rerun completed, the earlier Dogri and Sindhi cases were each retested directly; both returned HTTP 200, the intended detected language, and non-empty explanations and next steps (Dogri: 3; Sindhi: 2). These were repeated as part of the full matrix above. The live frontend still exposes 14 selector choices; the draft PR branch exposes 22. These API checks do not establish native-speaker quality, fluency, nuance, or legal correctness.
+Before the full rerun completed, the earlier Dogri and Sindhi cases were each retested directly; both returned HTTP 200, the intended detected language, and non-empty explanations and next steps (Dogri: 3; Sindhi: 2). These were repeated as part of the full matrix above. The live frontend and current draft branch each expose 14 selector choices. These API checks do not establish native-speaker quality, fluency, nuance, or legal correctness.
