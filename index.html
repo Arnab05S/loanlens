@@ -194,20 +194,20 @@ textarea:focus{border-color:var(--ink2);}
 
     <!-- PDF / screenshot upload -->
     <div id="zone-pdf">
-      <input type="file" id="file-input" accept=".pdf,.jpg,.jpeg,.png,.webp,.heic,.heif">
+      <input type="file" id="file-input" accept=".pdf,.jpg,.jpeg,.png,.webp,.heic,.heif,.bmp,.gif,.tif,.tiff,.doc,.docx,.odt,.xls,.xlsx,.ppt,.pptx,.txt,.md,.csv,.json,.html,.htm,.xml,.rtf,.eml,.zip">
       <div class="upload-area" onclick="document.getElementById('file-input').click()">
         <div class="ua-icon">📂</div>
         <div class="ua-title">Drop your file here, or tap to browse</div>
         <div class="ua-sub">Works with rejection letters, notices, bank statements, screenshots</div>
         <button class="ua-btn" onclick="event.stopPropagation();document.getElementById('file-input').click()">Choose file →</button>
-        <div class="ua-fmts">PDF · JPG · PNG · WEBP · HEIC · Screenshots</div>
+        <div class="ua-fmts">PDF · Photos · Word/ODT · Excel/CSV · PPT · Text · RTF · Email · ZIP</div>
       </div>
-      <div class="privacy">🔒 Your document is processed privately and deleted within 24 hours. We never store personal data.</div>
+      <div class="privacy">🔒 Uploaded document content is sent to Google Gemini for analysis. Redact Aadhaar, PAN, account numbers, and phone numbers first.</div>
     </div>
 
     <!-- Camera / photo upload -->
     <div id="zone-photo" class="hidden">
-      <input type="file" id="photo-input" accept="image/*" capture="environment">
+      <input type="file" id="photo-input" accept="image/jpeg,image/png,image/webp,image/heic,image/heif,image/bmp,image/gif,image/tiff" capture="environment">
       <div class="upload-area" onclick="document.getElementById('photo-input').click()">
         <div class="ua-icon">📸</div>
         <div class="ua-title">Take a photo of your rejection letter</div>
@@ -215,7 +215,7 @@ textarea:focus{border-color:var(--ink2);}
         <button class="ua-btn" onclick="event.stopPropagation();document.getElementById('photo-input').click()">Open camera →</button>
         <div class="ua-fmts">Or upload from gallery · Works with handwritten letters</div>
       </div>
-      <div class="privacy">🔒 Your photo is processed privately and deleted within 24 hours.</div>
+      <div class="privacy">🔒 Uploaded photo content is sent to Google Gemini for analysis. Redact personal identifiers before uploading.</div>
     </div>
 
     <!-- Text input -->
@@ -330,6 +330,16 @@ function isValidAnalysisResult(data) {
 // ── File input wiring ──
 document.getElementById('file-input').onchange = e => { if(e.target.files[0]) uploadFile(e.target.files[0]); };
 document.getElementById('photo-input').onchange = e => { if(e.target.files[0]) uploadFile(e.target.files[0]); };
+window.addEventListener('dragover', e => e.preventDefault(), true);
+window.addEventListener('drop', e => e.preventDefault(), true);
+document.querySelectorAll('#zone-pdf .upload-area, #zone-photo .upload-area').forEach(zone => {
+  zone.addEventListener('dragover', e => e.preventDefault());
+  zone.addEventListener('drop', e => {
+    e.preventDefault();
+    const file = e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files[0];
+    if(file) uploadFile(file);
+  });
+});
 
 // ── Upload file ──
 async function uploadFile(file) {
@@ -341,8 +351,10 @@ async function uploadFile(file) {
     const fd = new FormData();
     fd.append('file', file);
     const r = await fetch(`${API_BASE}/analyse/document`, {method:'POST', body:fd});
-    if (!r.ok) throw new Error(`Server error ${r.status}: ${await r.text()}`);
-    const result = await r.json();
+    const data = await r.json().catch(() => null);
+    if (!r.ok) throw new Error((data && data.detail) || `File analysis failed (HTTP ${r.status}).`);
+    if (!data) throw new Error('The analysis service returned an unreadable response. Please try again.');
+    const result = data;
     if(!isValidAnalysisResult(result)) throw new Error('The analysis service returned an invalid result.');
     showResult(result);
   } catch(e) {
@@ -374,7 +386,7 @@ async function submitText() {
 
 // ── Processing animation ──
 const PROC_STEPS = [
-  'Reading document with Gemini Vision',
+  'Reading your document or image',
   'Detecting language automatically',
   'Extracting loan details and rejection reason',
   'Checking for evidence-based review flags',
