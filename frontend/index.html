@@ -160,12 +160,12 @@ textarea:focus{border-color:var(--ink2);}
 
   <div class="hero">
     <div class="hero-title">Did your loan get<br>rejected unfairly?</div>
-    <div class="hero-sub">Upload your rejection letter, take a photo, or type what happened — in your language. LoanLens checks for hidden bias and tells you what to do next. Free, private, in 30 seconds.</div>
+    <div class="hero-sub">Upload your rejection letter, take a photo, or describe what happened — in your language. LoanLens highlights stated reasons and missing details that may need review, then suggests what to check next. Free, no registration; typical response is about 30 seconds.</div>
     <div class="hero-stats">
       <div class="hs"><div class="hs-v">22</div><div class="hs-l">Indian languages</div></div>
       <div class="hs"><div class="hs-v">Free</div><div class="hs-l">No registration</div></div>
       <div class="hs"><div class="hs-v">30s</div><div class="hs-l">Average result time</div></div>
-      <div class="hs"><div class="hs-v">24h</div><div class="hs-l">Data auto-deleted</div></div>
+      <div class="hs"><div class="hs-v">No saved files</div><div class="hs-l">by LoanLens</div></div>
     </div>
   </div>
 
@@ -175,7 +175,7 @@ textarea:focus{border-color:var(--ink2);}
       <div class="icard sel" id="uc-pdf" onclick="selInput('pdf')">
         <div class="icard-icon">📄</div>
         <div class="icard-title">Upload document</div>
-        <div class="icard-sub">Any bank letter, notice, or document you received</div>
+        <div class="icard-sub">Rejection notice: PDF, photo, Office, or text file</div>
         <div class="icard-fmts">PDF · JPG · PNG · Screenshot · Word doc</div>
       </div>
       <div class="icard" id="uc-photo" onclick="selInput('photo')">
@@ -211,7 +211,7 @@ textarea:focus{border-color:var(--ink2);}
       <div class="upload-area" onclick="document.getElementById('photo-input').click()">
         <div class="ua-icon">📸</div>
         <div class="ua-title">Take a photo of your rejection letter</div>
-        <div class="ua-sub">Place the letter flat, ensure text is readable. AI handles blur and shadows.</div>
+        <div class="ua-sub">Place the letter flat in good lighting; blurry photos may not be readable.</div>
         <button class="ua-btn" onclick="event.stopPropagation();document.getElementById('photo-input').click()">Open camera →</button>
         <div class="ua-fmts">Or upload from gallery · Works with handwritten letters</div>
       </div>
