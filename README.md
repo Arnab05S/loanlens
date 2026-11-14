@@ -19,7 +19,7 @@ LoanLens reads a borrower’s description or a rejection notice, extracts the ca
 ### Try it
 
 1. Open [LoanLens](https://arnab05s.github.io/loanlens/).
-2. Type what happened, upload a PDF/image, or take a photo of a rejection notice.
+2. Type what happened, choose a supported file, use the camera, or drag a file into the upload area.
 3. Review the extracted facts, explanation, and suggested next steps. Check important requirements with the lender or an appropriate adviser.
 
 **Use synthetic or redacted material when possible.** Do not upload unredacted Aadhaar, PAN, account numbers, phone numbers, or other sensitive identifiers. Documents are sent to Google’s Gemini service for analysis; review the relevant provider privacy terms before submitting personal material.
@@ -29,7 +29,9 @@ LoanLens reads a borrower’s description or a rejection notice, extracts the ca
 | Area | Current implementation |
 | --- | --- |
 | Text | Case-specific analysis through the FastAPI backend, with a language hint where available |
-| Documents | PDF, JPEG, PNG, and WEBP uploads; maximum 20 MB |
+| Documents | PDF, JPEG/PNG/WEBP/HEIC/HEIF/BMP/GIF/TIFF, DOC/DOCX/ODT, XLS/XLSX, PPT/PPTX, TXT/MD/CSV/JSON/HTML/XML/RTF, EML, and ZIP; 20 MB per upload |
+| File handling | PDFs/photos use Gemini vision; Word/OpenDocument and presentation text/images are extracted; spreadsheets are read as cell values; ZIPs analyse up to 12 supported items within a 50 MB expanded-size limit |
+| Fail-safe behavior | Unsupported, password-protected, corrupt, oversized, mismatched, or unreadable uploads return a clear error rather than a canned analysis |
 | AI response | Structured extraction, explanation, and next-step suggestions; service errors are shown instead of a fallback conclusion |
 | Browser UI | Static HTML, CSS, and JavaScript; no frontend build step |
 | Model | Gemini 3.5 Flash-Lite by default, with configured model fallbacks |
@@ -71,7 +73,7 @@ For local testing, set the front-end API URL to `http://localhost:8000` using `w
 | --- | --- | --- |
 | `GET` | `/health` | Service health check |
 | `POST` | `/analyse/text` | Analyze text and optional language hint |
-| `POST` | `/analyse/document` | Analyze a PDF or supported image upload |
+| `POST` | `/analyse/document` | Analyze a supported document, photo, email, spreadsheet, text file, or ZIP upload |
 | `GET` | `/docs` | Interactive API documentation |
 
 Example health check:
