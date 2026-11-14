@@ -16,7 +16,8 @@ from email.parser import BytesParser
 from html.parser import HTMLParser
 from pathlib import PurePosixPath
 from typing import Iterable
-import xml.etree.ElementTree as ET
+from defusedxml import ElementTree as ET
+from defusedxml.common import DefusedXmlException
 
 from openpyxl import load_workbook
 from PIL import Image, ImageOps, UnidentifiedImageError
@@ -181,11 +182,10 @@ def _safe_archive(data: bytes) -> zipfile.ZipFile:
 def _xml_root(data: bytes) -> ET.Element:
     if len(data) > MAX_XML_BYTES:
         raise UploadError("The document’s text structure is too large to analyse safely.")
-    upper = data.upper()
-    if b"<!DOCTYPE" in upper or b"<!ENTITY" in upper:
-        raise UploadError("This document contains unsupported XML declarations. Re-save it as PDF and try again.")
     try:
-        return ET.fromstring(data)
+        return ET.fromstring(data, forbid_dtd=True, forbid_entities=True, forbid_external=True)
+    except DefusedXmlException as exc:
+        raise UploadError("This document contains unsupported XML declarations. Re-save it as PDF and try again.") from exc
     except ET.ParseError as exc:
         raise UploadError("The document’s text structure is damaged or unreadable.") from exc
 
@@ -220,12 +220,16 @@ def _archive_images(archive: zipfile.ZipFile, prefix: str) -> tuple[list[tuple[b
         try:
             payload = archive.read(member)
             if ext in CONVERTIBLE_IMAGE_EXTENSIONS:
+                if not _signature_ok(ext, payload):
+                    raise UploadError("Invalid embedded image signature.")
                 parts, note = _to_gemini_images(payload, ext)
                 if note:
                     notes.append(note)
             else:
                 if not _signature_ok(ext, payload):
                     raise UploadError("Invalid embedded image signature.")
+                if ext in {".jpg", ".jpeg", ".png", ".webp"}:
+                    _validate_image_blob(payload, ext)
                 parts = [(payload, mime)]
             for part in parts:
                 if len(images) >= MAX_EMBEDDED_IMAGES or total_bytes + len(part[0]) > MAX_EMBEDDED_IMAGE_BYTES:
@@ -394,6 +398,7 @@ def _eml_text(data: bytes) -> tuple[str, list[tuple[bytes, str]], int]:
     images: list[tuple[bytes, str]] = []
     attachment_count = 0
     skipped_count = 0
+    omitted_images = 0
     if message.get("subject"):
         text_parts.append("Subject: " + str(message.get("subject")))
     for part in message.walk():
@@ -411,7 +416,8 @@ def _eml_text(data: bytes) -> tuple[str, list[tuple[bytes, str]], int]:
                     str(filename), payload, part.get_content_type(), allow_zip=False
                 )
                 text_parts.append("Attached document content:\n" + attachment_text)
-                images.extend(attachment_images)
+                images, omitted = _limit_image_parts(images + attachment_images)
+                omitted_images += omitted
             except UploadError:
                 skipped_count += 1
             continue
@@ -426,7 +432,6 @@ def _eml_text(data: bytes) -> tuple[str, list[tuple[bytes, str]], int]:
         text_parts.append(str(body))
     if skipped_count:
         text_parts.append(f"[The email contains {skipped_count} attachment(s) that were unsupported, unreadable, or oversized and were not analysed. Upload them separately if they are relevant.]")
-    images, omitted_images = _limit_image_parts(images)
     if omitted_images:
         text_parts.append(f"[The email contains {omitted_images} additional image/document attachment part(s) omitted at the safe analysis limit.]")
     return _clean_text("\n".join(text_parts)), images, attachment_count
@@ -472,23 +477,32 @@ def _signature_ok(extension: str, data: bytes) -> bool:
 def _to_gemini_images(data: bytes, extension: str) -> tuple[list[tuple[bytes, str]], str]:
     images: list[tuple[bytes, str]] = []
     notes: list[str] = []
+    total_bytes = 0
     try:
         with Image.open(io.BytesIO(data)) as source:
             frame_count = getattr(source, "n_frames", 1)
             frame_limit = min(frame_count, 8) if extension in {".tif", ".tiff"} else 1
             for frame_index in range(frame_limit):
                 source.seek(frame_index)
-                frame = ImageOps.exif_transpose(source.copy())
-                if frame.width * frame.height > Image.MAX_IMAGE_PIXELS:
+                width, height = source.size
+                if width <= 0 or height <= 0 or width * height > Image.MAX_IMAGE_PIXELS:
                     raise UploadError("This image has too many pixels to process safely. Resize it or export it as a smaller PDF.")
-                mode = "RGBA" if "transparency" in frame.info or frame.mode in {"RGBA", "LA"} else "RGB"
-                normalized = frame.convert(mode)
-                output = io.BytesIO()
-                normalized.save(output, format="PNG", optimize=True)
-                payload = output.getvalue()
-                if len(payload) > MAX_EMBEDDED_IMAGE_BYTES:
-                    raise UploadError("This image expands beyond the safe processing limit when converted. Try a smaller image.")
+                frame = ImageOps.exif_transpose(source.copy())
+                try:
+                    mode = "RGBA" if "transparency" in frame.info or frame.mode in {"RGBA", "LA"} else "RGB"
+                    normalized = frame.convert(mode)
+                    try:
+                        output = io.BytesIO()
+                        normalized.save(output, format="PNG", optimize=True)
+                        payload = output.getvalue()
+                    finally:
+                        normalized.close()
+                finally:
+                    frame.close()
+                if len(payload) > MAX_EMBEDDED_IMAGE_BYTES or total_bytes + len(payload) > MAX_EMBEDDED_IMAGE_BYTES:
+                    raise UploadError("This image or its converted pages exceed the safe combined processing limit. Try a smaller image.")
                 images.append((payload, "image/png"))
+                total_bytes += len(payload)
             if frame_count > frame_limit:
                 notes.append(f"Only the first {frame_limit} page(s)/frame(s) of this multi-frame image were analysed.")
             elif extension == ".gif" and frame_count > 1:
@@ -601,6 +615,8 @@ def _extract_one(filename: str, data: bytes, content_type: str | None = None, *,
         try:
             members = [m for m in archive.infolist() if not m.is_dir() and not m.filename.startswith("__MACOSX/")]
             results = []
+            images: list[tuple[bytes, str]] = []
+            omitted_images = 0
             skipped_count = 0
             for member in members:
                 if len(results) >= MAX_ZIP_DOCUMENTS:
@@ -620,16 +636,17 @@ def _extract_one(filename: str, data: bytes, content_type: str | None = None, *,
                 except UploadError:
                     skipped_count += 1
                     continue
-                results.append((text_part, image_parts, names))
+                results.append((text_part, names))
+                images, omitted = _limit_image_parts(images + image_parts)
+                omitted_images += omitted
             if not results:
                 raise UploadError("No supported, readable files were found in this ZIP. Use PDF, photos, DOCX, ODT, PPTX, XLSX, TXT, CSV, RTF, EML, or JSON files.")
             text = "\n\n".join(r[0] for r in results)
             if skipped_count:
                 text += f"\n\n[Notice: {skipped_count} archive item(s) were not analysed because they were unsupported, oversized, or unreadable. Upload any relevant item separately.]"
-            images, omitted_images = _limit_image_parts([part for r in results for part in r[1]])
             if omitted_images:
                 text += f"\n\n[Notice: {omitted_images} image/document part(s) were omitted at the safe analysis limit. Upload the relevant file separately if needed.]"
-            names = [name for r in results for name in r[2]]
+            names = [name for r in results for name in r[1]]
             return f"Extracted content from a user-supplied ZIP containing {len(names)} readable supported document(s):\n{text}", images, names
         finally:
             archive.close()
