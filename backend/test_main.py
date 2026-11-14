@@ -165,6 +165,15 @@ class BackendAnalysisTests(unittest.TestCase):
         with self.assertRaises(main.InvalidAnalysisInput):
             asyncio.run(main.analyse({"extracted": {"loan_rejection_related": True}}, "text", "id"))
 
+    def test_non_rejection_input_returns_not_scoreable_without_a_number(self):
+        payload = {"extracted": {"loan_rejection_related": False}, "explanation_native": "This is not a rejection.",
+                   "explanation_en": "This is not a rejection.", "next_steps": [],
+                   "questions_for_user": [], "legal_context": None}
+        with patch("main._generate_async", new=AsyncMock(return_value=payload)):
+            response = TestClient(main.app).post("/analyse/text", json={"text": "Here is my monthly household budget; please summarize it."})
+        self.assertEqual(response.status_code, 422)
+        self.assertIn("Not scoreable", response.json()["detail"])
+
     def test_distinct_user_stories_reach_distinct_answers_and_next_steps(self):
         cases = [
             ("I repaid my farm loan, but the bank says an old overdue remains on my credit report.",
