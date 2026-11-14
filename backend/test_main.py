@@ -133,7 +133,22 @@ class BackendAnalysisTests(unittest.TestCase):
         reason = "Credit score below the stated threshold; applicant is a woman from a rural district"
         result = main.compute_review_assessment(reason, reason)
         self.assertIsNone(result["bias_score"])
+        self.assertEqual(result["review_priority_score"], 0)
         self.assertEqual(result["bias_indicators"], [])
+
+    def test_rejection_for_income_threshold_does_not_link_later_religion_context(self):
+        reason = "Rejected because of the income threshold; applicant is Muslim."
+        result = main.compute_review_assessment(reason, reason)
+        self.assertEqual(result["review_priority_score"], 0)
+        self.assertNotIn("Stated reason links the decision to a personal characteristic",
+                         {item["label"] for item in result["bias_indicators"]})
+
+    def test_negated_gender_exclusion_does_not_create_a_personal_characteristic_signal(self):
+        reason = "Not for women: this condition does not apply; rejected for low credit score."
+        result = main.compute_review_assessment(reason, reason)
+        self.assertEqual(result["review_priority_score"], 0)
+        self.assertNotIn("Stated reason links the decision to a personal characteristic",
+                         {item["label"] for item in result["bias_indicators"]})
 
     def test_personal_characteristic_unlinked_to_decision_is_not_flagged(self):
         reason = "Although I am a woman, my application was declined due to a low credit score."
@@ -158,6 +173,13 @@ class BackendAnalysisTests(unittest.TestCase):
         result = main.compute_review_assessment("Credit score below required threshold", "Credit score below required threshold")
         self.assertIsNone(result["bias_score"])
         self.assertEqual(result["bias_indicators"], [])
+
+    def test_no_review_contact_is_missing_is_not_flagged_as_missing_review_route(self):
+        reason = "Credit score 550 is below the stated 650 requirement. No review contact is missing."
+        result = main.compute_review_assessment(reason, reason, source_text=reason)
+        self.assertEqual(result["review_priority_score"], 0)
+        self.assertNotIn("Decision basis or review route is missing",
+                         {item["label"] for item in result["bias_indicators"]})
 
     def test_empty_and_non_rejection_inputs_fail_closed(self):
         with self.assertRaises(main.InvalidAnalysisInput):
@@ -245,6 +267,14 @@ class BackendAnalysisTests(unittest.TestCase):
         self.assertNotIn("aadhaar", result)
         self.assertNotIn("unexpected", result)
         self.assertEqual(len(result["stated_reason"]),1000)
+
+    def test_rejection_boolean_must_be_a_real_json_boolean(self):
+        for value in ("false", "true", 1, None):
+            with self.subTest(value=value):
+                result = main._clean_extraction({"loan_rejection_related": value})
+                self.assertIs(result["loan_rejection_related"], False)
+        self.assertIs(main._clean_extraction({"loan_rejection_related": True})["loan_rejection_related"], True)
+
 
     def test_ai_errors_are_not_returned_as_client_input_422(self):
         self.assertFalse(isinstance(main.AIServiceError("broken model"), main.InvalidAnalysisInput))
