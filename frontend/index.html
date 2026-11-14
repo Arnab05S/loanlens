@@ -234,7 +234,7 @@ textarea:focus{border-color:var(--ink2);}
     <div class="processing">
       <div style="font-size:24px;margin-bottom:8px;">⚙️</div>
       <div class="proc-title">Analysing your document…</div>
-      <div class="proc-sub">Gemini is reading and checking for bias patterns</div>
+      <div class="proc-sub">Gemini is reading this case; LoanLens checks review signals in the evidence</div>
       <div class="proc-steps" id="proc-steps"></div>
     </div>
   </div>
@@ -322,8 +322,10 @@ function selInput(type) {
 
 function isValidAnalysisResult(data) {
   const score = data && data.bias_score;
-  const validScore = score === null || (typeof score === 'number' && Number.isFinite(score) && score >= 0 && score <= 100);
-  return !!(data && data.extracted && typeof data.extracted === 'object' && validScore &&
+  const priority = data && data.review_priority_score;
+  const validBiasScore = score === null;
+  const validPriority = typeof priority === 'number' && Number.isInteger(priority) && priority >= 0 && priority <= 100;
+  return !!(data && data.extracted && typeof data.extracted === 'object' && validBiasScore && validPriority &&
     Array.isArray(data.bias_indicators) && Array.isArray(data.next_steps));
 }
 
@@ -420,17 +422,19 @@ function showResult(d) {
   document.getElementById('step-processing').classList.add('hidden');
   document.getElementById('step-result').classList.remove('hidden');
 
-  const score = typeof d.bias_score === 'number' && Number.isFinite(d.bias_score) && d.bias_score >= 0 && d.bias_score <= 100 ? d.bias_score : null;
+  const score = typeof d.review_priority_score === 'number' && Number.isInteger(d.review_priority_score) && d.review_priority_score >= 0 && d.review_priority_score <= 100 ? d.review_priority_score : null;
   const scoreEl = document.getElementById('score-val');
   scoreEl.textContent = score === null ? '—' : score;
-  scoreEl.style.color = score === null ? 'var(--ink3)' : score >= 70 ? 'var(--red)' : score >= 50 ? 'var(--amb)' : 'var(--grn)';
-  document.getElementById('score-note').textContent = score === null ? 'Not scoreable from one case' : 'Statistical score';
+  scoreEl.style.color = score === null ? 'var(--ink3)' : score >= 85 ? 'var(--red)' : score >= 50 ? 'var(--amb)' : 'var(--ink2)';
+  const scoreNote = document.getElementById('score-note');
+  scoreNote.textContent = score === null ? 'Not scoreable' : 'Review priority / 100';
+  scoreNote.title = d.review_priority_note || 'Not a probability of discrimination; zero is not proof of fairness.';
 
   const cardState = d.verdict === 'likely_unfair' ? 'bad' : d.verdict === 'likely_fair' ? 'ok' : 'warn';
   const vc = document.getElementById('verdict-card');
   vc.className = 'verdict-card vc-' + cardState;
   document.getElementById('verdict-icon').textContent = cardState === 'bad' ? '⚠️' : cardState === 'ok' ? '✅' : 'ℹ️';
-  document.getElementById('verdict-label').textContent = d.verdict_label || d.verdict || '';
+  document.getElementById('verdict-label').textContent = d.review_priority_label || d.verdict_label || d.verdict || '';
   document.getElementById('verdict-conf').textContent = d.confidence || '';
   document.getElementById('verdict-body').textContent = d.explanation_en || d.explanation || '';
 
