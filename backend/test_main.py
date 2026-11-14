@@ -26,6 +26,21 @@ class BackendAnalysisTests(unittest.TestCase):
         self.assertTrue(all(item["score"] is None for item in result["bias_indicators"]))
         self.assertEqual(result["verdict"], "unclear")
 
+    def test_exact_geography_community_and_opaque_scoring_case_gets_review_flags_not_a_probability(self):
+        reason = ("Negative Geography / Non-Serviceable Pin-Code Cluster and "
+                  "Internal Community & Residential Profile Stability Norms")
+        source = (reason + ". The institution is not obligated to disclose granular scoring parameters.")
+        result = main.compute_bias_score(reason, reason, source_text=source)
+        self.assertIsNone(result["bias_score"])
+        labels = {item["label"] for item in result["bias_indicators"]}
+        self.assertIn("High-priority review flag: geography/serviceability criterion", labels)
+        self.assertIn("High-priority review flag: undefined community/residential criterion", labels)
+        self.assertIn("Request the basis behind the stated reasons", labels)
+        self.assertTrue(all(item["score"] is None for item in result["bias_indicators"]))
+        self.assertEqual(result["verdict"], "unclear")
+        opaque = next(item for item in result["bias_indicators"] if item["label"] == "Request the basis behind the stated reasons")
+        self.assertIn("does not establish an RBI violation", opaque["evidence"])
+
     def test_explicit_personal_characteristic_link_is_flagged_without_probability(self):
         reason = "Application rejected because the applicant is Muslim."
         result = main.compute_bias_score(reason, reason)
