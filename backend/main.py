@@ -176,14 +176,14 @@ def _clean_extraction(data):
     cleaned = {key: data.get(key) for key in allowed}
     for key in allowed:
         value = cleaned[key]
-        if key == "missing_information":
-            cleaned[key] = [str(item)[:200] for item in value[:8]] if isinstance(value, list) else []
+        if key == "loan_rejection_related":
+            cleaned[key] = value is True
+        elif key == "missing_information":
+            cleaned[key] = [item[:200] for item in value[:8] if isinstance(item, str)] if isinstance(value, list) else []
+        elif key == "extraction_confidence":
+            cleaned[key] = value if isinstance(value, (int, float)) and not isinstance(value, bool) and 0 <= value <= 1 else None
         elif isinstance(value, str):
             cleaned[key] = value[:1000]
-        elif key == "loan_rejection_related":
-            cleaned[key] = value is True
-        elif key == "extraction_confidence":
-            cleaned[key] = value if isinstance(value, (int, float)) and 0 <= value <= 1 else None
         elif value is not None:
             cleaned[key] = None
     return cleaned
@@ -297,10 +297,16 @@ def compute_review_assessment(stated_reason=None, stated_reason_en=None, missing
         r"\bwritten\s+explanation\b",
     )
     listed_gap = any(re.search(pattern, item, re.I) for item in missing_items for pattern in gap_targets)
+    gap_terms = r"(?:specific criteria?|specific reason|policy (?:clause|reference|citation)|review (?:contact|process|route)|appeal (?:contact|process|route)|written explanation)"
     reported_gap = bool(re.search(
-        r"\b(?:no|without|missing|omitted|lacks?|not provided|not specified|not stated|does not (?:provide|include|state)|did not (?:provide|include|state))\b.{0,120}\b(?:specific criteria?|specific reason|policy (?:clause|reference|citation)|review (?:contact|process|route)|appeal (?:contact|process|route)|written explanation)\b",
+        r"\b(?:no|without|missing|omitted|lacks?|not provided|not specified|not stated|does not (?:provide|include|state)|did not (?:provide|include|state))\b.{0,120}\b" + gap_terms + r"\b",
         source, re.I
     ))
+    explicit_not_missing = bool(re.search(
+        r"\bno\b.{0,80}\b" + gap_terms + r"\b.{0,35}\b(?:is|are|was|were)\s+missing\b",
+        source, re.I
+    ))
+    reported_gap = reported_gap and not explicit_not_missing
     if listed_gap or reported_gap:
         signals.append({
             "label": "Decision basis or review route is missing",
@@ -311,17 +317,33 @@ def compute_review_assessment(stated_reason=None, stated_reason_en=None, missing
 
     personal_characteristic = r"\b(?:gender|sex|women?|men|female|male|caste|dalit|tribe|tribal|religion|muslim|hindu|christian|sikh|language|disability|disabled|pregnan\w*|marital status)\b"
     decision_term = r"\b(?:reject(?:ed|ion)?|deny|denied|declin(?:e|ed)|refus(?:e|ed)|not approved|ineligible|not eligible|cannot approve|can't approve|do not lend|does not lend|will not approve)\b"
-    causal_term = r"\b(?:because(?: of)?|due to|on account of|for being|based on|as a result of)\b"
-    direct_exclusion = bool(
-        re.search(r"\b(?:no|not for|will not accept)\s+(?:women?|men|female|male|muslim|hindu|christian|sikh|tribal|dalit|disabled)\b", normalized_reason)
-        or re.search(personal_characteristic + r".{0,60}\b(?:not eligible|ineligible|not allowed|cannot apply|can't apply|will not approve|do not lend|not accepted)\b", normalized_reason)
+    causal_term = r"\b(?:because(?: of)?|due to|on account of|for being|based on|on grounds? of|as a result of)\b"
+    trait_phrase = (
+        r"(?:\b(?:the\s+)?(?:applicant|borrower|customer|person)\s+(?:is|was)\s+"
+        r"|\b(?:applicant|borrower|customer|person)'s\s+"
+        r"|\b(?:i|we|he|she|they)\s+(?:am|are|is|was|were)\s+)?" + personal_characteristic
     )
-    positive_link = (
-        bool(re.search(decision_term + r".{0,80}" + causal_term + r".{0,60}" + personal_characteristic, normalized_reason))
-        or bool(re.search(causal_term + r".{0,60}" + personal_characteristic + r".{0,60}" + decision_term, normalized_reason))
+    characteristic_link = False
+    reason_clauses = [part.strip() for part in re.split(r"[.!?;\n]+", normalized_reason) if part.strip()]
+    direct_exclusion_pattern = (
+        r"\b(?:no|not for|will not accept)\s+(?:women?|men|female|male|muslim|hindu|christian|sikh|tribal|dalit|disabled)\b"
+        r"|" + personal_characteristic + r".{0,60}\b(?:applicants?|borrowers?|customers?)?\s*(?:are|is|were|was)?\s*(?:not eligible|ineligible|not allowed|cannot apply|can't apply|will not approve|do not lend|not accepted)\b"
     )
-    negated_link = bool(re.search(r"\b(?:not|never|no)\b.{0,100}(?:" + causal_term + r").{0,60}" + personal_characteristic, normalized_reason))
-    if reason and (direct_exclusion or (positive_link and not negated_link)):
+    clear_negation_pattern = r"\b(?:does not apply|doesn't apply|not the reason|not due to|not because|not based on|not linked to|not related to|not associated with|did not cause)\b"
+    for clause in reason_clauses:
+        direct_exclusion = bool(re.search(direct_exclusion_pattern, clause))
+        positive_link = (
+            bool(re.search(decision_term + r".{0,60}" + causal_term + r".{0,35}" + trait_phrase, clause))
+            or bool(re.search(causal_term + r".{0,35}" + trait_phrase + r".{0,40}" + decision_term, clause))
+        )
+        negated_link = bool(
+            re.search(r"\b(?:not|never|no)\b.{0,50}(?:" + causal_term + r").{0,35}" + trait_phrase, clause)
+            or re.search(clear_negation_pattern, clause)
+        )
+        if (direct_exclusion or positive_link) and not negated_link:
+            characteristic_link = True
+            break
+    if reason and characteristic_link:
         signals.append({
             "label": "Stated reason links the decision to a personal characteristic",
             "description": "The extracted rejection reason explicitly connects the decision to a personal characteristic. Verify the wording in the lender's notice and seek a human review.",
@@ -432,7 +454,9 @@ async def analyse_document(file: UploadFile = File(...)):
         raise HTTPException(status_code=413, detail="File too large. Maximum size is 20 MB.")
     try:
         extension = resolve_extension(file.filename, file.content_type)
-        extracted_text, binary_parts, included_names = prepare_upload(file.filename, file.content_type, data)
+        extracted_text, binary_parts, included_names = await asyncio.to_thread(
+            prepare_upload, file.filename, file.content_type, data
+        )
         text_for_model = truncate_extracted_text(extracted_text)
     except UploadError as exc:
         raise HTTPException(status_code=exc.status_code, detail=str(exc))
