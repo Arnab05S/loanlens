@@ -332,9 +332,13 @@ def compute_review_assessment(stated_reason=None, stated_reason_en=None, missing
     clear_negation_pattern = r"\b(?:does not apply|doesn't apply|not the reason|not due to|not because|not based on|not linked to|not related to|not associated with|did not cause)\b"
     for clause in reason_clauses:
         direct_exclusion = bool(re.search(direct_exclusion_pattern, clause))
+        # Require the stated causal connector to point directly to the personal
+        # characteristic. A nearby demographic mention elsewhere in the same
+        # clause (for example, "rejected because income was low and applicant
+        # is Muslim") is not enough to infer a causal link.
         positive_link = (
-            bool(re.search(decision_term + r".{0,60}" + causal_term + r".{0,35}" + trait_phrase, clause))
-            or bool(re.search(causal_term + r".{0,35}" + trait_phrase + r".{0,40}" + decision_term, clause))
+            bool(re.search(decision_term + r".{0,60}" + causal_term + r"\s*" + trait_phrase, clause))
+            or bool(re.search(causal_term + r"\s*" + trait_phrase + r".{0,40}" + decision_term, clause))
         )
         negated_link = bool(
             re.search(r"\b(?:not|never|no)\b.{0,50}(?:" + causal_term + r").{0,35}" + trait_phrase, clause)
