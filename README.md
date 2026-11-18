@@ -92,6 +92,12 @@ python -m unittest discover -s backend -v
 
 The suite uses synthetic fixtures only; it does not call Gemini or require a live API key.
 
+## Gemini free-tier behavior
+
+Each analysis makes one request to the configured Gemini model. The backend does not fan out to other models after a provider error. A process-local safety guard allows at most four requests per minute and 90 per rolling 24 hours; when it is reached, the API returns `429` with a `Retry-After` value. Gemini failures or timeouts return `503` with a one-minute retry hint.
+
+These are protective caps, not an availability guarantee or a project-wide quota. The counters reset when the service restarts and are separate for each running process. Google can also change per-project and per-model limits; check the [AI Studio usage and rate-limit pages](https://aistudio.google.com/usage) before a live demo. `/health` only reports whether a key is configured, not whether Gemini is currently accepting requests.
+
 ## API endpoints
 
 | Method | Endpoint | Purpose |
@@ -112,9 +118,9 @@ curl https://loanlens-api-0lrc.onrender.com/health
 The two hosted parts have separate deploy sources:
 
 - **Website:** GitHub Pages publishes the repository’s `main` branch root. The latest Pages workflow completed successfully, and the logo/API configuration are live.
-- **API:** the Render `loanlens-api` service builds from `backend/` on branch `fix/real-analysis`. Render’s **On Commit** setting did not start recent builds, so `.github/workflows/deploy-render-backend.yml` now triggers the Render deploy hook on backend changes in that branch. The workflow’s repository secret is `RENDER_DEPLOY_HOOK` (separate from the server-side Render secret `GEMINI_API_KEY`). The workflow and hook-triggered deployment have both been verified. Documentation, root HTML, and image-only changes outside `backend/` do not need to rebuild the API.
+- **API:** the Render `loanlens-api` service builds from `backend/` on branch `fix/real-analysis`. The `.github/workflows/deploy-render-backend.yml` workflow runs on backend changes and relevant pull requests; it installs the pinned requirements, runs the backend/file-ingestion tests, builds the container, and smoke-checks `/health`. A push to `fix/real-analysis` triggers the Render deploy hook only after those checks pass. It uses the repository secret `RENDER_DEPLOY_HOOK` (separate from the server-side Render secret `GEMINI_API_KEY`). A successful hook request means Render accepted the trigger—not that a particular deployment finished; verify the exact commit is marked Live in Render and check `/health`. Documentation, root HTML, and image-only changes outside `backend/` do not need to rebuild the API.
 
-After a web change, verify [the live site](https://arnab05s.github.io/loanlens/). After a backend change, confirm the GitHub Actions workflow and Render deployment complete, then check [API health](https://loanlens-api-0lrc.onrender.com/health). **A commit to `main` does not, by itself, update the Render branch, and a commit to `fix/real-analysis` does not update GitHub Pages.** Keep the branches in sync when touching shared HTML, or merge/reconfigure only after reviewing the current draft pull request. The live UI and API must both point at the intended release.
+After a web change, verify [the live site](https://arnab05s.github.io/loanlens/). After a backend change, confirm CI tests and container smoke check pass, then verify Render marks the intended commit Live and check [API health](https://loanlens-api-0lrc.onrender.com/health). **A commit to `main` does not, by itself, update the Render branch, and a commit to `fix/real-analysis` does not update GitHub Pages.** Keep the branches in sync when touching shared HTML. The live UI and API must both point at the intended release.
 
 ## Repository layout
 
