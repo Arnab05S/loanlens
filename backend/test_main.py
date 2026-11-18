@@ -143,6 +143,13 @@ class BackendAnalysisTests(unittest.TestCase):
         self.assertNotIn("Stated reason links the decision to a personal characteristic",
                          {item["label"] for item in result["bias_indicators"]})
 
+    def test_same_clause_income_reason_does_not_link_unrelated_religion_mention(self):
+        reason = "Rejected because income was low and the applicant is Muslim."
+        result = main.compute_review_assessment(reason, reason)
+        self.assertEqual(result["review_priority_score"], 0)
+        self.assertNotIn("Stated reason links the decision to a personal characteristic",
+                         {item["label"] for item in result["bias_indicators"]})
+
     def test_negated_gender_exclusion_does_not_create_a_personal_characteristic_signal(self):
         reason = "Not for women: this condition does not apply; rejected for low credit score."
         result = main.compute_review_assessment(reason, reason)
