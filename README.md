@@ -92,6 +92,12 @@ python -m unittest discover -s backend -v
 
 The suite uses synthetic fixtures only; it does not call Gemini or require a live API key.
 
+## Gemini free-tier behavior
+
+Each analysis makes one request to the configured Gemini model. The backend does not fan out to other models after a provider error. A process-local safety guard allows at most four requests per minute and 90 per rolling 24 hours; when it is reached, the API returns `429` with a `Retry-After` value. Gemini failures or timeouts return `503` with a one-minute retry hint.
+
+These are protective caps, not an availability guarantee or a project-wide quota. The counters reset when the service restarts and are separate for each running process. Google can also change per-project and per-model limits; check the [AI Studio usage and rate-limit pages](https://aistudio.google.com/usage) before a live demo. `/health` only reports whether a key is configured, not whether Gemini is currently accepting requests.
+
 ## API endpoints
 
 | Method | Endpoint | Purpose |
