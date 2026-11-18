@@ -18,6 +18,63 @@ def synthetic_docx(text="The home loan was rejected because the property is outs
 
 
 class BackendAnalysisTests(unittest.TestCase):
+    def setUp(self):
+        self._real_reserve_gemini_slot = main._reserve_gemini_slot
+        throttle = patch("main._reserve_gemini_slot", return_value=0)
+        throttle.start()
+        self.addCleanup(throttle.stop)
+
+    def test_text_endpoint_returns_429_and_retry_after_before_calling_gemini(self):
+        with patch("main._reserve_gemini_slot", return_value=75), \
+             patch("main._generate_async", new=AsyncMock()) as generate:
+            response = TestClient(main.app).post(
+                "/analyse/text", json={"text": "Synthetic loan rejection test notice."}
+            )
+        self.assertEqual(response.status_code, 429)
+        self.assertEqual(response.headers["retry-after"], "75")
+        generate.assert_not_awaited()
+
+    def test_document_endpoint_returns_429_and_retry_after_before_calling_gemini(self):
+        with patch("main._reserve_gemini_slot", return_value=75), \
+             patch("main._generate_async", new=AsyncMock()) as generate:
+            response = TestClient(main.app).post(
+                "/analyse/document",
+                files={"file": ("notice.docx", synthetic_docx(), "application/vnd.openxmlformats-officedocument.wordprocessingml.document")}
+            )
+        self.assertEqual(response.status_code, 429)
+        self.assertEqual(response.headers["retry-after"], "75")
+        generate.assert_not_awaited()
+
+    def test_gemini_failure_does_not_fan_out_to_fallback_models(self):
+        from types import SimpleNamespace
+        from unittest.mock import Mock
+        generate = Mock(side_effect=RuntimeError("synthetic 503"))
+        client = SimpleNamespace(models=SimpleNamespace(generate_content=generate))
+        with patch("main._client", return_value=client):
+            with self.assertRaises(main.AIServiceError):
+                main._generate("synthetic request", "system prompt")
+        self.assertEqual(generate.call_count, 1)
+        self.assertEqual(generate.call_args.kwargs["model"], main.MODEL)
+
+    def test_free_tier_guard_enforces_minute_and_rolling_day_caps(self):
+        with main._GEMINI_REQUEST_LOCK:
+            main._GEMINI_REQUESTS_MINUTE.clear()
+            main._GEMINI_REQUESTS_DAY.clear()
+        with patch.object(main, "FREE_TIER_RPM_CAP", 2), patch.object(main, "FREE_TIER_ROLLING_DAY_CAP", 3):
+            self.assertEqual(self._real_reserve_gemini_slot(), 0)
+            self.assertEqual(self._real_reserve_gemini_slot(), 0)
+            self.assertGreaterEqual(self._real_reserve_gemini_slot(), 60)
+        with main._GEMINI_REQUEST_LOCK:
+            main._GEMINI_REQUESTS_MINUTE.clear()
+            main._GEMINI_REQUESTS_DAY.clear()
+        with patch.object(main, "FREE_TIER_RPM_CAP", 5), patch.object(main, "FREE_TIER_ROLLING_DAY_CAP", 2):
+            self.assertEqual(self._real_reserve_gemini_slot(), 0)
+            self.assertEqual(self._real_reserve_gemini_slot(), 0)
+            self.assertGreaterEqual(self._real_reserve_gemini_slot(), 86400)
+        with main._GEMINI_REQUEST_LOCK:
+            main._GEMINI_REQUESTS_MINUTE.clear()
+            main._GEMINI_REQUESTS_DAY.clear()
+
     def test_single_case_never_gets_a_statistical_score_but_gets_review_priority(self):
         result = main.compute_review_assessment("Insufficient income", "Insufficient income")
         self.assertIsNone(result["bias_score"])
@@ -349,18 +406,22 @@ class BackendAnalysisTests(unittest.TestCase):
         with patch("main._generate_async", new=AsyncMock(side_effect=main.AIServiceError("provider unavailable"))):
             response=TestClient(main.app).post("/analyse/text", json={"text": "The bank rejected my personal loan without a clear reason."})
         self.assertEqual(response.status_code, 503)
+        self.assertEqual(response.headers["retry-after"], "60")
         self.assertNotEqual(response.status_code, 422)
 
-    def test_invalid_structured_output_retries_with_stable_model(self):
+    def test_generate_uses_one_structured_request_without_deprecated_sampling_parameters(self):
         from types import SimpleNamespace
         from unittest.mock import Mock
-        calls = Mock(side_effect=[SimpleNamespace(text="not-json"), SimpleNamespace(text='{"ok": true}')])
-        client = SimpleNamespace(models=SimpleNamespace(generate_content=calls))
-        with patch.object(main, "MODEL", "test-primary"), patch.object(main, "_client", return_value=client):
+        call = Mock(return_value=SimpleNamespace(text='{"ok": true}'))
+        client = SimpleNamespace(models=SimpleNamespace(generate_content=call))
+        with patch.object(main, "MODEL", "gemini-3.5-flash-lite"), patch.object(main, "_client", return_value=client):
             result = main._generate("synthetic case", "system prompt")
         self.assertEqual(result, {"ok": True})
-        used = [call.kwargs["model"] for call in calls.call_args_list]
-        self.assertEqual(used, ["test-primary", "gemini-3.5-flash-lite"])
+        self.assertEqual(call.call_count, 1)
+        self.assertEqual(call.call_args.kwargs["model"], "gemini-3.5-flash-lite")
+        config = call.call_args.kwargs["config"]
+        self.assertEqual(config.response_mime_type, "application/json")
+        self.assertIsNone(config.temperature)
 
 if __name__ == "__main__":
     unittest.main()
